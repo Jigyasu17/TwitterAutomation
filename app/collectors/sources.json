@@ -1,0 +1,65 @@
+[
+  {
+    "name": "RBI Press Releases",
+    "url": "https://news.google.com/rss/search?q=RBI+Press+Releases+India&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "REGULATORY",
+    "country": "India",
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "name": "SEBI Press Releases",
+    "url": "https://news.google.com/rss/search?q=SEBI+Press+Releases&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "REGULATORY",
+    "country": "India",
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "name": "Indian Stock Market",
+    "url": "https://news.google.com/rss/search?q=Indian+stock+market&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "MARKET",
+    "country": "India",
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "name": "Indian IPOs",
+    "url": "https://news.google.com/rss/search?q=Indian+IPO&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "IPO",
+    "country": "India",
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "name": "India Startup Funding",
+    "url": "https://news.google.com/rss/search?q=India+startup+funding&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "STARTUP",
+    "country": "India",
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "name": "India Business News",
+    "url": "https://news.google.com/rss/search?q=India+business+news&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "BUSINESS",
+    "country": "India",
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "name": "TechCrunch Startups",
+    "url": "https://techcrunch.com/feed/",
+    "type": "rss",
+    "category": "TECH",
+    "country": "Global",
+    "enabled": true,
+    "priority": 3
+  }
+]

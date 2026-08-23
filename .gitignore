@@ -1,0 +1,31 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest Cache
+.pytest_cache/
+
+# Local SQLite Database Data
+data/
+*.db
+*.sqlite
+
+# Local Logs
+logs/
+*.log
+
+# Environment Variables / Credentials
+.env
+.env.development
+.env.production
+.env.local
+
+# OS Metadata
+.DS_Store
+Thumbs.db

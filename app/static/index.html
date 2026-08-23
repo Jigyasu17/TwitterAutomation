@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarketPulse Dashboard</title>
+    <!-- Premium Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- App Container -->
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="pulse-icon"></div>
+                <h1>MarketPulse</h1>
+                <span class="badge-v1">v2.0.0</span>
+            </div>
+            
+            <div class="header-actions">
+                <button id="process-btn" class="btn btn-secondary">
+                    <span class="spinner" id="process-spinner"></span>
+                    <span class="btn-text">Process Stories</span>
+                </button>
+                <button id="collect-btn" class="btn btn-primary">
+                    <span class="spinner" id="collect-spinner"></span>
+                    <span class="btn-text">Collect News</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Counter Panel -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total-articles">0</div>
+                <div class="stat-label">Total Articles</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-unique-events">0</div>
+                <div class="stat-label">Unique Events</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value text-accent" id="stat-high-priority">0</div>
+                <div class="stat-label">High Priority</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value text-success" id="stat-medium-priority">0</div>
+                <div class="stat-label">Medium Priority</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value text-danger" id="stat-rejected">0</div>
+                <div class="stat-label">Rejected</div>
+            </div>
+        </section>
+
+        <!-- Main Feed Workspace -->
+        <main class="feed-container">
+            <!-- Sidebar Filters -->
+            <aside class="filter-sidebar">
+                <div class="filter-group">
+                    <h3>Status Filter</h3>
+                    <div class="filter-tabs">
+                        <button class="filter-tab active" data-status="all">Active Queue</button>
+                        <button class="filter-tab" data-status="NEW">New / Raw Ingests</button>
+                        <button class="filter-tab" data-status="APPROVED">Approved</button>
+                        <button class="filter-tab" data-status="REJECTED">Rejected</button>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Priority Filter</h3>
+                    <div class="filter-tabs">
+                        <button class="priority-tab active" data-priority="all">All Priorities</button>
+                        <button class="priority-tab" data-priority="high">🔥 High Priority</button>
+                        <button class="priority-tab" data-priority="medium">⚡ Medium Priority</button>
+                        <button class="priority-tab" data-priority="low">💤 Low Priority</button>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Research Queue</h3>
+                    <div id="sidebar-research-queue" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem; background: rgba(0,0,0,0.1); padding: 0.5rem; border-radius: 6px; font-size: 0.8rem;">
+                        <div style="color: var(--text-muted); text-align: center; padding: 0.5rem 0;">No eligible stories in queue</div>
+                    </div>
+                    <button id="process-research-btn" class="btn btn-secondary" style="width: 100%; font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                        <span class="spinner" id="research-queue-spinner"></span>
+                        <span class="btn-text">Process Queue</span>
+                    </button>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Sort Order</h3>
+                    <select id="sort-select" class="select-dropdown">
+                        <option value="score">Highest Score</option>
+                        <option value="newest">Newest First</option>
+                        <option value="sources">Most Sources</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Category</h3>
+                    <select id="category-select" class="select-dropdown">
+                        <option value="">All Categories</option>
+                        <option value="MARKET">MARKET</option>
+                        <option value="STOCK">STOCK</option>
+                        <option value="BUSINESS">BUSINESS</option>
+                        <option value="STARTUP">STARTUP</option>
+                        <option value="FUNDING">FUNDING</option>
+                        <option value="IPO">IPO</option>
+                        <option value="M&A">M&A</option>
+                        <option value="ECONOMY">ECONOMY</option>
+                        <option value="REGULATORY">REGULATORY</option>
+                        <option value="TECH">TECH</option>
+                        <option value="GLOBAL">GLOBAL</option>
+                    </select>
+                </div>
+            </aside>
+
+            <!-- Stories Feed Area -->
+            <section class="stories-feed-area">
+                <div class="feed-header">
+                    <h2>Events & Stories Queue</h2>
+                    <span id="feed-count" class="feed-count-badge">0 stories</span>
+                </div>
+
+                <!-- Feed Loader -->
+                <div id="feed-loader" class="loader-overlay hidden">
+                    <div class="dual-ring-spinner"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty-state" class="empty-state hidden">
+                    <div class="empty-icon">📂</div>
+                    <h3>No stories found</h3>
+                    <p>Collect raw news and trigger processing to see ranked events.</p>
+                </div>
+
+                <!-- Story Cards Container -->
+                <div id="stories-grid" class="stories-grid">
+                    <!-- Cards will be populated dynamically -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Detail View Modal Overlay -->
+    <div id="detail-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Story Title</h2>
+                <button class="modal-close-btn" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Scores Row -->
+                <div class="modal-metrics-grid">
+                    <div class="modal-metric">
+                        <div class="modal-metric-val text-accent" id="modal-final-score">0</div>
+                        <div class="modal-metric-lbl">Weighted Rank</div>
+                    </div>
+                    <div class="modal-metric">
+                        <div class="modal-metric-val" id="modal-importance">0</div>
+                        <div class="modal-metric-lbl">Importance</div>
+                    </div>
+                    <div class="modal-metric">
+                        <div class="modal-metric-val" id="modal-postability">0</div>
+                        <div class="modal-metric-lbl">Postability</div>
+                    </div>
+                    <div class="modal-metric">
+                        <div class="modal-metric-val" id="modal-confidence">0</div>
+                        <div class="modal-metric-lbl">Confidence</div>
+                    </div>
+                </div>
+                
+                <!-- Core Metadata -->
+                <div class="modal-info-row">
+                    <div class="info-item"><strong>Category:</strong> <span id="modal-category">-</span></div>
+                    <div class="info-item"><strong>Event Type:</strong> <span id="modal-event-type">-</span></div>
+                    <div class="info-item"><strong>Primary Company:</strong> <span id="modal-company">-</span></div>
+                </div>
+                
+                <!-- Extracted Entities Pills -->
+                <div class="modal-section">
+                    <h3>Extracted Entities</h3>
+                    <div class="entities-container">
+                        <div class="entity-group">
+                            <span class="entity-lbl">Companies:</span>
+                            <div class="entity-pills" id="modal-entities-companies"></div>
+                        </div>
+                        <div class="entity-group">
+                            <span class="entity-lbl">Sectors:</span>
+                            <div class="entity-pills" id="modal-entities-sectors"></div>
+                        </div>
+                        <div class="entity-group">
+                            <span class="entity-lbl">Countries:</span>
+                            <div class="entity-pills" id="modal-entities-countries"></div>
+                        </div>
+                        <div class="entity-group" id="modal-entities-people-row">
+                            <span class="entity-lbl">People:</span>
+                            <div class="entity-pills" id="modal-entities-people"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Story Summary -->
+                <div class="modal-section">
+                    <h3>Story Description / Summary</h3>
+                    <p id="modal-summary" class="modal-text-desc"></p>
+                </div>
+
+                <!-- Table Breakdown -->
+                <div class="modal-section">
+                    <h3>Ranking Justification Breakdown</h3>
+                    <table class="breakdown-table">
+                        <thead>
+                            <tr>
+                                <th>Ranking Category</th>
+                                <th>Raw Score</th>
+                                <th>Formula Weight</th>
+                                <th>Weighted Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Market Impact</td>
+                                <td id="table-market-impact">0</td>
+                                <td>25% Importance</td>
+                                <td rowspan="6" style="vertical-align: middle; text-align: center; font-weight: 600; font-size: 1.1rem; border-left: 1px solid var(--border-color);" id="table-weighted-importance">0 / 50</td>
+                            </tr>
+                            <tr>
+                                <td>Financial Significance</td>
+                                <td id="table-financial-sig">0</td>
+                                <td>20% Importance</td>
+                            </tr>
+                            <tr>
+                                <td>Novelty</td>
+                                <td id="table-novelty">0</td>
+                                <td>15% Importance</td>
+                            </tr>
+                            <tr>
+                                <td>Audience Interest</td>
+                                <td id="table-audience-interest">0</td>
+                                <td>15% Importance</td>
+                            </tr>
+                            <tr>
+                                <td>Discussion Potential</td>
+                                <td id="table-discussion-potential">0</td>
+                                <td>15% Importance</td>
+                            </tr>
+                            <tr>
+                                <td>Source Confidence</td>
+                                <td id="table-source-confidence">0</td>
+                                <td>10% Importance</td>
+                            </tr>
+                            <tr class="table-total-row">
+                                <td>Total Importance Score</td>
+                                <td id="table-total-importance">0 / 100</td>
+                                <td>x 0.50</td>
+                                <td id="weighted-importance-final">0.0</td>
+                            </tr>
+                            <tr>
+                                <td>Postability Score</td>
+                                <td id="table-postability">0 / 100</td>
+                                <td>x 0.35</td>
+                                <td id="weighted-postability-final">0.0</td>
+                            </tr>
+                            <tr>
+                                <td>Confidence Score</td>
+                                <td id="table-confidence">0 / 100</td>
+                                <td>x 0.15</td>
+                                <td id="weighted-confidence-final">0.0</td>
+                            </tr>
+                            <tr class="table-grand-total-row">
+                                <td colspan="3">Final Weighted Rank Score</td>
+                                <td id="table-grand-total">0.0 / 100</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Research Panel Section -->
+                <div class="modal-section" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h3>Automated Research Report</h3>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="modal-research-btn" class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+                                <span class="spinner" id="modal-research-spinner" style="width: 10px; height: 10px;"></span>
+                                <span class="btn-text">Research Event</span>
+                            </button>
+                            <button id="modal-research-again-btn" class="btn btn-secondary hidden" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+                                <span class="spinner" id="modal-research-again-spinner" style="width: 10px; height: 10px;"></span>
+                                <span class="btn-text">Research Again</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="modal-research-status-bar" style="background: rgba(0,0,0,0.25); padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+                        <span>Research Status: <strong id="modal-research-status" class="text-accent" style="text-transform: uppercase;">NOT_RESEARCHED</strong></span>
+                        <div style="display: flex; gap: 0.4rem;">
+                            <button id="modal-mark-reviewed-btn" class="btn btn-secondary hidden" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Mark Reviewed</button>
+                            <button id="modal-mark-needs-review-btn" class="btn btn-secondary hidden" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Needs Review</button>
+                        </div>
+                    </div>
+
+                    <!-- Research Output Report Content -->
+                    <div id="modal-research-report-content" class="hidden" style="background: rgba(255,255,255,0.02); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 1.5rem; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; overflow-x: auto;">
+                        <!-- Report Markdown will be injected here -->
+                    </div>
+                </div>
+
+                <!-- Linked Sources List -->
+                <div class="modal-section">
+                    <h3>Associated Sources & Publisher Reports (<span id="modal-source-count">0</span>)</h3>
+                    <ul class="modal-sources-list" id="modal-sources-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

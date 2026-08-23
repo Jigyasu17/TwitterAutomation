@@ -1,0 +1,2 @@
+from app.repositories.sqlite.story_repository import SQLStoryRepository
+from app.repositories.sqlite.research_repository import SQLResearchRepository
