@@ -70,14 +70,15 @@ app.add_middleware(
 app.include_router(stories_router)
 app.include_router(stats_router)
 
-# Mount static frontend directory
-static_dir = Path(__file__).resolve().parent.parent / "public"
+# Mount static frontend directory (development only)
 if settings.ENV == "development" and not settings.VERCEL:
+    static_dir = Path(__file__).resolve().parent.parent / "public"
     try:
         static_dir.mkdir(exist_ok=True, parents=True)
         (static_dir / "css").mkdir(exist_ok=True, parents=True)
         (static_dir / "js").mkdir(exist_ok=True, parents=True)
     except Exception as e:
         logger.warning(f"Could not construct static folder paths locally: {e}")
-
-app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+        
+    if static_dir.exists():
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
