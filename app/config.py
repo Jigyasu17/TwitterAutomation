@@ -14,7 +14,12 @@ class Config:
     VERCEL: bool = os.getenv("VERCEL", "0") == "1"
 
     # DB
+    DATABASE_BACKEND: str = os.getenv("DATABASE_BACKEND", "sqlite")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///data/marketpulse.db")
+
+    # Firestore Cloud DB
+    GCP_PROJECT_ID: str = os.getenv("GCP_PROJECT_ID", "")
+    FIRESTORE_CREDENTIALS_JSON: str = os.getenv("FIRESTORE_CREDENTIALS_JSON", "")
 
     # Scheduler & Limits
     NEWS_FETCH_INTERVAL_MINUTES: int = int(os.getenv("NEWS_FETCH_INTERVAL_MINUTES", "15"))

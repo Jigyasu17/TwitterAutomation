@@ -22,6 +22,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
     """Dependency for obtaining a database session."""
+    if settings.DATABASE_BACKEND == "firestore":
+        yield None
+        return
+
     db = SessionLocal()
     try:
         yield db

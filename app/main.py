@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifecycle events to handle DB setup and scheduler on startup."""
     logger.info("Starting up MarketPulse backend...")
-    init_db()
+    if settings.DATABASE_BACKEND == "sqlite":
+        init_db()
     
     if settings.START_LOCAL_SCHEDULER:
         try:

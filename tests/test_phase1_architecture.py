@@ -54,17 +54,7 @@ def mock_network_requests(monkeypatch):
     monkeypatch.setattr(trafilatura, "extract", lambda *args, **kwargs: "Mock extracted body text content from publisher news website page.")
     monkeypatch.setattr(trafilatura, "fetch_url", lambda *args, **kwargs: "Mock HTML content")
 
-@pytest.fixture(name="db_session")
-def fixture_db_session():
-    """Sets up an in-memory SQLite database for architectural repository testing."""
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = TestingSessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
+
 
 @pytest.fixture(name="client")
 def fixture_client():

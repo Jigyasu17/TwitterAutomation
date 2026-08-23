@@ -1,7 +1,6 @@
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.database.database import SessionLocal
-from app.repositories.sqlite import SQLStoryRepository, SQLResearchRepository
+from app.repositories.factory import create_story_repository, create_research_repository
 from app.jobs.collection_job import run_news_collection
 from app.jobs.processing_job import run_story_processing
 from app.jobs.research_job import run_research_job
@@ -12,31 +11,28 @@ scheduler = BackgroundScheduler()
 
 def collection_job():
     logger.info("Executing local development scheduled collection job...")
-    db = SessionLocal()
     try:
-        story_repo = SQLStoryRepository(db)
+        story_repo = create_story_repository()
         run_news_collection(story_repo)
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"Scheduled collection job failed: {e}")
 
 def processing_job():
     logger.info("Executing local development scheduled story processing job...")
-    db = SessionLocal()
     try:
-        story_repo = SQLStoryRepository(db)
+        story_repo = create_story_repository()
         run_story_processing(story_repo)
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"Scheduled processing job failed: {e}")
 
 def research_job():
     logger.info("Executing local development scheduled research job...")
-    db = SessionLocal()
     try:
-        story_repo = SQLStoryRepository(db)
-        research_repo = SQLResearchRepository(db)
+        story_repo = create_story_repository()
+        research_repo = create_research_repository()
         run_research_job(story_repo, research_repo)
-    finally:
-        db.close()
+    except Exception as e:
+        logger.error(f"Scheduled research job failed: {e}")
 
 def start_scheduler():
     """Configures and starts background scheduler jobs for local environment."""

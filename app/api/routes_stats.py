@@ -1,16 +1,14 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.database.database import get_db
-from app.repositories.sqlite import SQLStoryRepository
+from app.repositories.interfaces import StoryRepository
+from app.repositories.factory import get_story_repo
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 @router.get("")
-def get_stats(db: Session = Depends(get_db)):
+def get_stats(story_repo: StoryRepository = Depends(get_story_repo)):
     """Computes daily counter stats for the dashboard header."""
     try:
-        repo = SQLStoryRepository(db)
-        return repo.get_stats()
+        return story_repo.get_stats()
     except Exception as e:
         # Fallback to zeros in case of error
         return {

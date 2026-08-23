@@ -25,6 +25,7 @@ logs/
 .env.development
 .env.production
 .env.local
+firebase-key.json
 
 # OS Metadata
 .DS_Store
