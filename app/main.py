@@ -71,7 +71,7 @@ app.include_router(stories_router)
 app.include_router(stats_router)
 
 # Mount static frontend directory
-static_dir = Path(__file__).resolve().parent / "static"
+static_dir = Path(__file__).resolve().parent.parent / "public"
 if settings.ENV == "development" and not settings.VERCEL:
     try:
         static_dir.mkdir(exist_ok=True, parents=True)

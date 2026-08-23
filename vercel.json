@@ -3,18 +3,6 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
-    },
-    {
-      "source": "/css/(.*)",
-      "destination": "/app/static/css/$1"
-    },
-    {
-      "source": "/js/(.*)",
-      "destination": "/app/static/js/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/app/static/index.html"
     }
   ]
 }
