@@ -70,6 +70,46 @@ app.add_middleware(
 app.include_router(stories_router)
 app.include_router(stats_router)
 
+from fastapi import Depends
+from app.repositories.interfaces import StoryRepository
+from app.repositories.factory import get_story_repo
+
+@app.get("/api/diagnose")
+@app.get("/diagnose")
+def run_diagnose(story_repo: StoryRepository = Depends(get_story_repo)):
+    """Diagnostic endpoint to inspect Firestore connection and index status safely."""
+    diagnostics = {
+        "database_backend": settings.DATABASE_BACKEND,
+        "gcp_project_id": settings.GCP_PROJECT_ID,
+        "credentials_detected": bool(settings.FIRESTORE_CREDENTIALS_JSON),
+        "credentials_length": len(settings.FIRESTORE_CREDENTIALS_JSON) if settings.FIRESTORE_CREDENTIALS_JSON else 0,
+        "firestore_client_ok": False,
+        "query_execution_ok": False,
+        "error_log": None
+    }
+    
+    if settings.DATABASE_BACKEND == "firestore":
+        try:
+            from app.repositories.firestore.client import get_firestore_client
+            client = get_firestore_client()
+            diagnostics["firestore_client_ok"] = True
+            diagnostics["project_detected_by_client"] = client.project
+            
+            # Run simple query to check indexing/connectivity
+            try:
+                # Harmless read of 1 doc
+                client.collection("stories").limit(1).get()
+                diagnostics["query_execution_ok"] = True
+            except Exception as query_error:
+                diagnostics["error_log"] = f"Query failed: {query_error}"
+                
+        except Exception as conn_error:
+            diagnostics["error_log"] = f"Client initialization failed: {conn_error}"
+    else:
+        diagnostics["error_log"] = "Database backend is set to sqlite. Bypassing Firestore diagnostics."
+        
+    return diagnostics
+
 # Mount static frontend directory (development only)
 if settings.ENV == "development" and not settings.VERCEL:
     static_dir = Path(__file__).resolve().parent.parent / "public"
