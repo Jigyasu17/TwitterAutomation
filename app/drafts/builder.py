@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional, Tuple
 from app.domain.models import StoryData, ResearchFactData
+from app.processing.classifier import SOURCE_PRIORITIES
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +10,27 @@ TWEET_LIMIT = 280
 NUMERIC_FACT_TYPES = {
     "funding_amount", "valuation", "acquisition_value", "ipo_size", "revenue", "profit", "loss"
 }
+
+# Wire services, regulators, and publications that get cited inside article
+# text often get mistakenly extracted by the classifier as "the company" the
+# story is about (e.g. a story mentioning "...according to Reuters..." can
+# come out with company="Reuters"). Reuses the same name list classifier.py
+# already maintains for source-trust scoring, since it's exactly the set of
+# names that show up as citations rather than story subjects.
+_NON_COMPANY_NAMES = {k for k in SOURCE_PRIORITIES if k != "general"}
+
+
+def _resolve_company(story: StoryData) -> Optional[str]:
+    """
+    Returns story.company, unless it's actually a wire service/regulator/
+    publication name — guards against embarrassingly wrong-sounding hooks
+    like "SEBI just hit the stock market!" (SEBI is India's securities
+    regulator, not a listed company).
+    """
+    company = story.company
+    if not company or company.strip().lower() in _NON_COMPANY_NAMES:
+        return None
+    return company
 
 
 def _find_fact(facts: List[ResearchFactData], fact_type: str) -> Optional[ResearchFactData]:
@@ -44,55 +66,91 @@ def _truncate(text: str, limit: int = TWEET_LIMIT) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
-def _hook_line(story: StoryData, facts: List[ResearchFactData]) -> Tuple[str, Optional[ResearchFactData]]:
-    """Builds the primary tweet line for a story. Returns (text, fact_used_if_any)."""
-    company = story.company or "The company"
+def _hook_and_explainer(
+    story: StoryData, facts: List[ResearchFactData]
+) -> Tuple[str, Optional[ResearchFactData], Optional[str]]:
+    """
+    Builds a retention hook (the attention-grabbing opening line) and a plain-
+    language, jargon-free one-liner explaining why it matters, for a story.
+
+    Deliberately NOT reusing report_builder.generate_why_it_matters() — that
+    text is written for the internal analyst-facing research report ("capital
+    infusion", "immediate runway") and is the opposite of the plain, simple
+    wording a tweet needs.
+
+    Returns (hook, fact_used_if_any, plain_explainer_or_none).
+    """
+    company = _resolve_company(story) or "This company"
     event = story.event_type or "OTHER"
 
     if event == "FUNDING":
         fact = _find_fact(facts, "funding_amount")
         if fact:
-            return f"\U0001F6A8 {company} raises {_format_amount(fact)} in fresh funding", fact
-        return f"\U0001F6A8 {company} raises fresh funding", None
+            hook = f"\U0001F4B0 {company} just landed {_format_amount(fact)} in funding!"
+        else:
+            hook = f"\U0001F4B0 {company} just landed fresh funding!"
+        explainer = "That's fresh cash to grow faster, hire more people, and expand."
+        return hook, fact, explainer
 
     if event == "ACQUISITION":
         fact = _find_fact(facts, "acquisition_value")
         if fact:
-            return f"\U0001F91D {company} acquires a company for {_format_amount(fact)}", fact
-        return f"\U0001F91D {company} announces an acquisition", None
+            hook = f"\U0001F91D Big deal: {company} is buying another company for {_format_amount(fact)}."
+        else:
+            hook = f"\U0001F91D Big deal: {company} just acquired another company."
+        explainer = "One company is taking over another — expect changes ahead."
+        return hook, fact, explainer
 
     if event in {"IPO_FILING", "IPO_ANNOUNCEMENT"}:
         fact = _find_fact(facts, "ipo_size")
         if fact:
-            return f"\U0001F4C8 {company} files for IPO to raise {_format_amount(fact)}", fact
-        return f"\U0001F4C8 {company} files for IPO", None
+            hook = f"\U0001F4C8 {company} is going public! Filing to raise {_format_amount(fact)}."
+        else:
+            hook = f"\U0001F4C8 {company} is going public!"
+        explainer = f"Soon, regular investors will be able to buy a piece of {company} on the stock market."
+        return hook, fact, explainer
 
     if event == "IPO_LISTING":
-        return f"\U0001F514 {company} debuts on the stock exchange today", None
+        hook = f"\U0001F514 Big day: {company} just hit the stock market!"
+        explainer = f"You can now buy or sell {company} shares like any other stock."
+        return hook, None, explainer
 
     if event == "STOCK_MOVEMENT":
         fact = _find_fact(facts, "stock_movement")
         if fact and isinstance(fact.normalized_value, (int, float)):
-            direction = "jumps" if fact.normalized_value >= 0 else "falls"
             pct = abs(fact.normalized_value)
-            return f"\U0001F4CA {company} shares {direction} {pct:.1f}%", fact
-        return f"\U0001F4CA {company} shares in focus", None
+            if fact.normalized_value >= 0:
+                hook = f"\U0001F4C8 {company} stock is on fire — up {pct:.1f}% today!"
+                explainer = f"Investors are feeling good about {company} right now."
+            else:
+                hook = f"\U0001F4C9 {company} stock just dropped {pct:.1f}%."
+                explainer = f"Investors are worried about {company} right now."
+            return hook, fact, explainer
+        return f"\U0001F4CA {company} shares are in focus today.", None, None
 
     if event in {"PROFIT_UPDATE", "REVENUE_UPDATE", "EARNINGS"}:
         fact = _find_fact(facts, "profit") or _find_fact(facts, "revenue")
         if fact:
             label = "profit" if fact.fact_type == "profit" else "revenue"
-            return f"\U0001F4B0 {company} reports {label} of {_format_amount(fact)}", fact
-        return f"\U0001F4B0 {company} reports quarterly results", None
+            hook = f"\U0001F4B0 {company}'s results are in — {label} of {_format_amount(fact)}."
+        else:
+            hook = f"\U0001F4B0 {company} just reported its latest results."
+        explainer = f"This shows how {company} is actually doing financially."
+        return hook, fact, explainer
 
     if event == "REGULATORY_ACTION":
-        return f"⚠️ Regulatory action: {company}", None
+        hook = f"⚠️ {company} just got in trouble with regulators."
+        explainer = "That usually means rules were broken — a fine or restrictions could follow."
+        return hook, None, explainer
 
     if event == "LAYOFF":
-        return f"\U0001F4C9 {company} announces layoffs", None
+        hook = f"\U0001F4C9 {company} is cutting jobs."
+        explainer = "A sign the company is trying to cut costs and tighten its belt."
+        return hook, None, explainer
 
-    # No specific template for this event type — fall back to the title itself
-    return story.title, None
+    # No specific template for this event type — still add a light hook cue
+    # rather than dropping the raw headline in unchanged.
+    return f"\U0001F4F0 {story.title}", None, None
 
 
 def generate_post_text(story: StoryData) -> Tuple[str, Optional[List[str]], str, str]:
@@ -100,18 +158,25 @@ def generate_post_text(story: StoryData) -> Tuple[str, Optional[List[str]], str,
     Builds tweet-ready content from a story and its research report (if any),
     using deterministic rule-based templates — no external API calls.
 
+    Leads with a retention hook, then a plain-language explanation of why it
+    matters, combined into a single tweet when it fits (most readers never
+    open a thread); overflow and supporting numbers go into thread_json.
+
     Returns (post_text, thread_json, image_headline, image_subheadline).
     """
     report = story.research_report
     facts = report.facts if report else []
 
-    hook, used_fact = _hook_line(story, facts)
-    post_text = _truncate(hook)
+    hook, used_fact, explainer = _hook_and_explainer(story, facts)
 
+    combined = f"{hook} {explainer}" if explainer else hook
     thread: List[str] = []
-
-    if report and report.why_it_matters:
-        thread.append(_truncate(f"Why it matters: {report.why_it_matters}"))
+    if len(combined) <= TWEET_LIMIT:
+        post_text = _truncate(combined)
+    else:
+        post_text = _truncate(hook)
+        if explainer:
+            thread.append(_truncate(explainer))
 
     other_facts = [
         f for f in facts
