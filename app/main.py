@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -67,6 +67,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prevent any layer (browser, Vercel edge, intermediate proxy) from caching
+# API responses. This is a live dashboard reading mutable data — a client
+# clicking "Collect News" must see the effect on its very next GET, not a
+# stale cached copy that only clears on a manual page reload.
+@app.middleware("http")
+async def no_store_api_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return response
 
 # Register routers
 app.include_router(stories_router)

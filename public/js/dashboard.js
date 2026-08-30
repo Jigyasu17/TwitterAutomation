@@ -184,7 +184,7 @@ function refreshDashboard() {
 // Fetch stats counts
 async function fetchStats() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch('/api/stats', { cache: 'no-store' });
         if (!response.ok) throw new Error('Stats fetch failed');
         const stats = await response.json();
         
@@ -207,7 +207,7 @@ async function fetchStories() {
             url += `&category=${currentCategory}`;
         }
 
-        const response = await fetch(url);
+        const response = await fetch(url, { cache: 'no-store' });
         if (!response.ok) throw new Error('Stories fetch failed');
         loadedStories = await response.json();
 
@@ -223,7 +223,7 @@ async function fetchStories() {
 // Fetch research queue
 async function fetchResearchQueue() {
     try {
-        const response = await fetch('/api/research/queue?min_importance=70&min_postability=75&limit=8');
+        const response = await fetch('/api/research/queue?min_importance=70&min_postability=75&limit=8', { cache: 'no-store' });
         if (!response.ok) throw new Error('Research queue fetch failed');
         const queue = await response.json();
         
