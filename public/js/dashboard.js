@@ -162,7 +162,10 @@ function initEventListeners() {
         if (!target) return;
 
         const action = target.getAttribute('data-action');
-        const storyId = parseInt(target.getAttribute('data-id'), 10);
+        // Story IDs are opaque strings (Firestore uses random alphanumeric
+        // document IDs in production; SQLite uses integers locally) — never
+        // coerce with parseInt, or every Firestore-backed story ID becomes NaN.
+        const storyId = target.getAttribute('data-id');
 
         if (action === 'approve') {
             await handleApprove(storyId);
@@ -257,7 +260,7 @@ function renderResearchQueue(queue) {
                 <div style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${story.title}</div>
                 <div style="font-size: 0.7rem; color: var(--text-muted);">Rank: ${story.final_score} | Imp: ${story.importance_score}</div>
             </div>
-            <button class="btn btn-primary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" onclick="handleSidebarResearch(${story.id})">Research</button>
+            <button class="btn btn-primary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" onclick="handleSidebarResearch('${story.id}')">Research</button>
         `;
         sidebarResearchQueue.appendChild(item);
     });
@@ -564,7 +567,9 @@ function parseMarkdown(md) {
 
 // Detail View Modal Handler
 function handleDetails(storyId) {
-    const story = loadedStories.find(s => s.id === storyId);
+    // Compare as strings: the API returns a numeric id under SQLite but a
+    // string id under Firestore, while data-id attributes are always strings.
+    const story = loadedStories.find(s => String(s.id) === String(storyId));
     if (!story) return;
 
     activeStoryId = storyId;
