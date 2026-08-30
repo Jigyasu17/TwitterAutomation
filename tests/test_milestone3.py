@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.database.models import Base, Story, ResearchReport, ResearchSource, ResearchFact, ResearchConflict
-from app.database.repositories import SQLStoryRepository, SQLResearchRepository
+from app.repositories.sqlite import SQLStoryRepository, SQLResearchRepository
 from app.research.models import SourceDetails, Fact, ConflictAlert
 from app.research.fact_normalizer import parse_monetary_value, normalize_percentage
 from app.research.fact_extractor import extract_facts_from_text

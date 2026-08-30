@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -58,10 +58,12 @@ app = FastAPI(
 )
 
 # Add CORS Middleware
+# allow_credentials is intentionally left off: this API uses no cookie-based
+# auth, so it serves no purpose, and paired with allow_origins=["*"] it's a
+# combination browsers reject outright anyway.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -70,25 +72,10 @@ app.add_middleware(
 app.include_router(stories_router)
 app.include_router(stats_router)
 
-from fastapi import Depends
-from app.repositories.interfaces import StoryRepository
-from app.repositories.factory import get_story_repo
-
 @app.get("/api/diagnose")
 @app.get("/diagnose")
 async def diagnose():
-    creds = settings.FIRESTORE_CREDENTIALS_JSON
-    return {
-        "status": "ok",
-        "source": "fastapi",
-        "env": settings.ENV,
-        "vercel": settings.VERCEL,
-        "database_backend": settings.DATABASE_BACKEND,
-        "gcp_project_id": settings.GCP_PROJECT_ID or None,
-        "firestore_credentials_present": bool(creds),
-        "firestore_credentials_length": len(creds) if creds else 0,
-        "firestore_credentials_looks_like_json": creds.strip().startswith("{") if creds else None,
-    }
+    return {"status": "ok", "source": "fastapi"}
 
 # Mount static frontend directory (development only)
 if settings.ENV == "development" and not settings.VERCEL:
@@ -99,22 +86,6 @@ if settings.ENV == "development" and not settings.VERCEL:
         (static_dir / "js").mkdir(exist_ok=True, parents=True)
     except Exception as e:
         logger.warning(f"Could not construct static folder paths locally: {e}")
-        
+
     if static_dir.exists():
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
-
-# TEMPORARY ROUTING DIAGNOSTIC — remove once /api/* is confirmed working on Vercel.
-# Registered last so it only catches requests that no route above already matched.
-# Reveals the exact ASGI scope path Vercel's function adapter hands to Starlette,
-# since production requests to registered routes (e.g. /api/stories) are currently
-# returning a generic 404 as if no route matches at all.
-@app.api_route("/{full_path:path}", methods=["GET", "POST"])
-async def debug_catch_all(full_path: str, request: Request):
-    return {
-        "caught_by": "catch_all",
-        "full_path_param": full_path,
-        "scope_path": request.scope.get("path"),
-        "raw_path": request.scope.get("raw_path", b"").decode("utf-8", "replace"),
-        "method": request.method,
-        "query_params": dict(request.query_params),
-    }

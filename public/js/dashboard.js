@@ -6,6 +6,49 @@ let currentSort = 'score';
 let loadedStories = []; // Client-side cache for modal details lookup
 let activeStoryId = null;
 
+// Admin auth: production requires an ADMIN_SECRET bearer token on mutating
+// endpoints. The token is never baked into this file (it's served publicly
+// from the CDN) — instead it's requested from the operator once and kept in
+// this browser's localStorage only.
+const ADMIN_TOKEN_KEY = 'marketpulse_admin_token';
+
+function getAdminToken() {
+    try {
+        return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function setAdminToken(token) {
+    try {
+        if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    } catch (e) {
+        // Ignore storage failures (private browsing, etc.) — request still proceeds this once.
+    }
+}
+
+// Wraps fetch() for endpoints that require ADMIN_SECRET in production. Sends
+// the locally-stored token if present; if the server responds 401, prompts
+// once for the token, remembers it, and retries the request.
+async function authedFetch(url, options = {}) {
+    const token = getAdminToken();
+    const headers = { ...(options.headers || {}) };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    let response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+        const entered = window.prompt('This action requires the admin token (ADMIN_SECRET). Enter it now:');
+        if (entered) {
+            setAdminToken(entered);
+            response = await fetch(url, { ...options, headers: { ...headers, 'Authorization': `Bearer ${entered}` } });
+        }
+    }
+
+    return response;
+}
+
 // DOM Elements
 const collectBtn = document.getElementById('collect-btn');
 const collectSpinner = document.getElementById('collect-spinner');
@@ -266,7 +309,7 @@ function renderResearchQueue(queue) {
 async function handleSidebarResearch(storyId) {
     try {
         showToast('Initiating research crawler...', 'info');
-        const response = await fetch(`/api/stories/${storyId}/research`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/research`, { method: 'POST' });
         if (!response.ok) throw new Error('Research trigger failed');
         const result = await response.json();
         
@@ -394,7 +437,7 @@ async function handleCollectNews() {
         setCollectLoading(true);
         showToast('Initiating news collector sync...', 'info');
 
-        const response = await fetch('/api/collect', { method: 'POST' });
+        const response = await authedFetch('/api/collect', { method: 'POST' });
         if (!response.ok) throw new Error('Collection failed');
         const result = await response.json();
 
@@ -418,7 +461,7 @@ async function handleProcessStories() {
         setProcessLoading(true);
         showToast('Running classifier and scoring calculations...', 'info');
 
-        const response = await fetch('/api/process', { method: 'POST' });
+        const response = await authedFetch('/api/process', { method: 'POST' });
         if (!response.ok) throw new Error('Processing failed');
         const result = await response.json();
 
@@ -442,7 +485,7 @@ async function handleProcessResearchQueue() {
         setResearchQueueLoading(true);
         showToast('Running research queue calculations (stateless concurrency)...', 'info');
         
-        const response = await fetch('/api/research/process?concurrency=3', { method: 'POST' });
+        const response = await authedFetch('/api/research/process?concurrency=3', { method: 'POST' });
         if (!response.ok) throw new Error('Queue processing failed');
         const result = await response.json();
         
@@ -473,7 +516,7 @@ async function handleRunResearch(isRerun = false) {
         showToast(isRerun ? 'Rerunning complete research...' : 'Crawling and extracting facts...', 'info');
         
         const url = isRerun ? `/api/stories/${activeStoryId}/research-again` : `/api/stories/${activeStoryId}/research`;
-        const response = await fetch(url, { method: 'POST' });
+        const response = await authedFetch(url, { method: 'POST' });
         if (!response.ok) throw new Error('Research request failed');
         const result = await response.json();
         
@@ -512,7 +555,7 @@ async function updateResearchStatus(newStatus) {
 // Actions approval / rejections
 async function handleApprove(storyId) {
     try {
-        const response = await fetch(`/api/stories/${storyId}/approve`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/approve`, { method: 'POST' });
         if (!response.ok) throw new Error('Approval request failed');
         showToast('Story Approved', 'success');
         refreshDashboard();
@@ -524,7 +567,7 @@ async function handleApprove(storyId) {
 
 async function handleReject(storyId) {
     try {
-        const response = await fetch(`/api/stories/${storyId}/reject`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/reject`, { method: 'POST' });
         if (!response.ok) throw new Error('Rejection request failed');
         showToast('Story Rejected', 'success');
         refreshDashboard();

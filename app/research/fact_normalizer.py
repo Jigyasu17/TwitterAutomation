@@ -34,17 +34,18 @@ def parse_monetary_value(value_str: str) -> Optional[Tuple[float, str]]:
         
     val = float(num_match.group(1))
 
-    # 3. Apply multipliers
+    # 3. Apply multipliers (word-boundary matches only, so short unit letters
+    # like "l" or "k" don't false-positive on ordinary words containing them)
     multiplier = 1.0
-    if "billion" in clean_str or re.search(r'\b(b)\b', clean_str):
+    if "billion" in clean_str or re.search(r'\bb\b', clean_str):
         multiplier = 1_000_000_000.0
-    elif "million" in clean_str or re.search(r'\b(m)\b', clean_str):
+    elif "million" in clean_str or re.search(r'\bm\b', clean_str):
         multiplier = 1_000_000.0
-    elif "crore" in clean_str or "cr" in clean_str:
+    elif "crore" in clean_str or re.search(r'\bcr\b', clean_str):
         multiplier = 10_000_000.0
-    elif "lakh" in clean_str or "l" in clean_str:
+    elif "lakh" in clean_str or re.search(r'\bl\b', clean_str):
         multiplier = 100_000.0
-    elif "k" in clean_str:
+    elif re.search(r'\bk\b', clean_str):
         multiplier = 1_000.0
 
     return val * multiplier, currency

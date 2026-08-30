@@ -241,44 +241,59 @@ class FirestoreStoryRepository(StoryRepository):
     ) -> List[StoryData]:
         try:
             query = self.client.collection(self.collection_name)
-            
-            if category:
-                query = query.where("category", "==", category)
-                
+
+            # Only ever apply a single Firestore-side filter (status) and a single
+            # Firestore-side sort field here. category and priority are applied
+            # in-memory below instead of as additional query filters, because each
+            # extra filter/sort field combination would need its own Firestore
+            # composite index, and the dashboard's independent status/category/
+            # priority/sort controls can combine into dozens of distinct shapes.
+            # Keeping the Firestore-side query to one fixed shape per sort mode
+            # keeps the required index set small and fixed.
+            apply_sort = status != "any"
+
             if status == "all":
                 query = query.where("status", "in", ["NEW", "READY_FOR_REVIEW", "APPROVED"])
             elif status != "any" and status:
                 query = query.where("status", "==", status)
 
-            if priority == "high":
-                query = query.where("final_score", ">=", 75)
-            elif priority == "medium":
-                query = query.where("final_score", ">=", 40).where("final_score", "<", 75)
-            elif priority == "low":
-                query = query.where("final_score", "<", 40)
+            if apply_sort:
+                if sort_by == "newest":
+                    query = query.order_by("published_at", direction=firestore.Query.DESCENDING)
+                else:
+                    query = query.order_by("final_score", direction=firestore.Query.DESCENDING)
 
-            # Firestore sorting
-            if sort_by == "newest":
-                query = query.order_by("published_at", direction=firestore.Query.DESCENDING)
-            else:
-                query = query.order_by("final_score", direction=firestore.Query.DESCENDING)\
-                             .order_by("published_at", direction=firestore.Query.DESCENDING)
-
-            # Limit and offset implementation
-            query = query.offset(offset).limit(limit)
+            # Fetch a generous buffer so in-memory filtering below still leaves
+            # enough candidates to satisfy limit/offset. Bounded the same way
+            # find_duplicate_story bounds its own lookback (limit=150) — a
+            # deliberate tradeoff that's correct at this project's scale.
+            fetch_cap = min(max((limit + offset) * 6, 150), 300)
+            query = query.limit(fetch_cap)
             docs = query.get()
-            
+
+            candidates = [map_story_dict_to_domain(d.id, d.to_dict()) for d in docs]
+
+            if category:
+                candidates = [s for s in candidates if s.category == category]
+
+            if priority == "high":
+                candidates = [s for s in candidates if s.final_score >= 75]
+            elif priority == "medium":
+                candidates = [s for s in candidates if 40 <= s.final_score < 75]
+            elif priority == "low":
+                candidates = [s for s in candidates if s.final_score < 40]
+
+            page = candidates[offset:offset + limit]
+
             stories = []
-            for d in docs:
-                story = map_story_dict_to_domain(d.id, d.to_dict())
-                
+            for story in page:
                 # Fetch linked report if any
-                reports = self.client.collection("research_reports").where("story_id", "==", d.id).limit(1).get()
+                reports = self.client.collection("research_reports").where("story_id", "==", story.id).limit(1).get()
                 if reports:
                     from app.repositories.firestore.research_repository import map_report_dict_to_domain
                     story.research_report = map_report_dict_to_domain(reports[0].id, reports[0].to_dict())
                 stories.append(story)
-                
+
             return stories
         except Exception as e:
             logger.error(f"Firestore error in get_stories: {e}")

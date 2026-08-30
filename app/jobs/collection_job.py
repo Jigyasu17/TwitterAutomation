@@ -4,6 +4,7 @@ from pathlib import Path
 from app.repositories.interfaces import StoryRepository
 from app.collectors.rss import RSSCollector
 from app.collectors.google_news import GoogleNewsCollector
+from app.processing.normalize import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,11 @@ def run_news_collection(story_repo: StoryRepository) -> dict:
             
             for item in fetched_items:
                 story = story_repo.add_or_merge_story(item)
-                # Check if it was a newly created story or a merged duplicate
-                if story.article_url == item["article_url"]:
+                # Check if it was a newly created story or a merged duplicate.
+                # story.article_url is always the normalized URL, so the raw feed
+                # URL must be normalized the same way before comparing, otherwise
+                # every new story with a tracking param gets miscounted as merged.
+                if story.article_url == normalize_url(item["article_url"]):
                     new_stories_count += 1
         except Exception as e:
             logger.error(f"Error collecting from source '{src.get('name')}': {e}")
