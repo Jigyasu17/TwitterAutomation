@@ -130,6 +130,57 @@ def test_research_queue_criteria_filtering():
     assert len(eligible_queue) == 1
     assert eligible_queue[0].id == "story_1"
 
+# --- get_stories() In-Memory Category/Priority Filtering Unit Tests ---
+
+def _make_story(id, status, category, final_score, source_name="VentureBeat"):
+    return StoryData(
+        id=id,
+        title=f"Title {id}",
+        status=status,
+        category=category,
+        final_score=final_score,
+        source_name=source_name,
+        source_url="https://venturebeat.com",
+        article_url=f"https://venturebeat.com/{id}",
+        published_at=datetime.datetime.now(datetime.timezone.utc),
+        content_hash=f"hash_{id}"
+    )
+
+def test_get_stories_applies_category_and_priority_in_memory():
+    """
+    get_stories() only filters/sorts on `status` at the Firestore query level now
+    (to keep the required composite index set fixed); category and priority are
+    applied afterwards on the fetched page. Verify that still produces correct
+    results, not just a query that runs without a FailedPrecondition.
+    """
+    mock_client = MockFirestoreClient()
+    story_repo = FirestoreStoryRepository(client=mock_client)
+
+    s1 = _make_story("s1", status="NEW", category="STARTUP", final_score=90)
+    s2 = _make_story("s2", status="REJECTED", category="STARTUP", final_score=95)  # excluded by status="all"
+    s3 = _make_story("s3", status="NEW", category="MARKET", final_score=50)  # excluded by category filter
+    s4 = _make_story("s4", status="APPROVED", category="STARTUP", final_score=60)
+    for s in (s1, s2, s3, s4):
+        story_repo.save(s)
+
+    # Category filter combined with the default "all" status filter
+    startup_stories = story_repo.get_stories(status="all", category="STARTUP")
+    assert {s.id for s in startup_stories} == {"s1", "s4"}
+
+    # Priority filter (final_score >= 75) combined with default "all" status filter
+    high_priority = story_repo.get_stories(status="all", priority="high")
+    assert {s.id for s in high_priority} == {"s1"}
+
+    # status="any" bypasses the status filter entirely (used internally by dedup)
+    # so the REJECTED story must be included too
+    any_status = story_repo.get_stories(status="any")
+    assert {s.id for s in any_status} == {"s1", "s2", "s3", "s4"}
+
+    # Pagination applies after in-memory filtering, on the filtered set
+    page = story_repo.get_stories(status="all", category="STARTUP", limit=1, offset=1)
+    assert [s.id for s in page] == ["s4"]
+
+
 # --- Failure Exception Handling Unit Tests ---
 
 def test_firestore_failure_handling():
