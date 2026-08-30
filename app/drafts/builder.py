@@ -66,6 +66,25 @@ def _truncate(text: str, limit: int = TWEET_LIMIT) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+GOOGLE_NEWS_HOST = "news.google.com"
+
+
+def _source_line(story: StoryData) -> Optional[str]:
+    """
+    Google News RSS links are obfuscated redirect wrappers — the real article
+    URL only resolves through an unofficial, fragile decoding step (Google
+    dropped plain HTTP redirects for these), so showing one as a "clickable"
+    link in a tweet is both ugly and unreliable. For those, show the outlet
+    name instead of a link. Direct RSS sources (e.g. TechCrunch) already give
+    the real article URL, so those stay as an actual clickable link.
+    """
+    if not story.article_url:
+        return None
+    if GOOGLE_NEWS_HOST in story.article_url:
+        return f"Source: {story.source_name}" if story.source_name else None
+    return f"Source: {story.article_url}"
+
+
 def _hook_and_explainer(
     story: StoryData, facts: List[ResearchFactData]
 ) -> Tuple[str, Optional[ResearchFactData], Optional[str]]:
@@ -186,8 +205,9 @@ def generate_post_text(story: StoryData) -> Tuple[str, Optional[List[str]], str,
         parts = [f"{f.fact_type.replace('_', ' ').title()}: {_format_amount(f)}" for f in other_facts]
         thread.append(_truncate(" | ".join(parts)))
 
-    if story.article_url:
-        thread.append(_truncate(f"Source: {story.article_url}"))
+    source_line = _source_line(story)
+    if source_line:
+        thread.append(_truncate(source_line))
 
     image_headline = _truncate(story.company or story.title, 60)
     image_subheadline = _truncate(story.category or "", 60)

@@ -77,6 +77,20 @@ def test_source_link_lands_in_thread_when_present():
     assert thread is not None
     assert any("https://example.com/article" in t for t in thread)
 
+def test_google_news_url_shows_outlet_name_not_the_ugly_redirect_link():
+    # Google News RSS links are obfuscated redirects with no reliable way to
+    # resolve the real URL without an unofficial/fragile decoder — show the
+    # outlet name instead of an unclickable, ugly link.
+    story = _make_story(
+        event_type="FUNDING",
+        article_url="https://news.google.com/rss/articles/CBMiabcdef123456"
+    )
+    post_text, thread, headline, subheadline = generate_post_text(story)
+
+    assert thread is not None
+    assert any(t == "Source: MoneyControl" for t in thread)
+    assert not any("news.google.com" in t for t in thread)
+
 def test_wire_service_or_regulator_name_is_not_treated_as_the_company():
     # A story where the classifier mistakenly extracted a cited wire service
     # or regulator name as "the company" must not produce a nonsensical hook
