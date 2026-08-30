@@ -77,7 +77,18 @@ from app.repositories.factory import get_story_repo
 @app.get("/api/diagnose")
 @app.get("/diagnose")
 async def diagnose():
-    return {"status": "ok", "source": "fastapi"}
+    creds = settings.FIRESTORE_CREDENTIALS_JSON
+    return {
+        "status": "ok",
+        "source": "fastapi",
+        "env": settings.ENV,
+        "vercel": settings.VERCEL,
+        "database_backend": settings.DATABASE_BACKEND,
+        "gcp_project_id": settings.GCP_PROJECT_ID or None,
+        "firestore_credentials_present": bool(creds),
+        "firestore_credentials_length": len(creds) if creds else 0,
+        "firestore_credentials_looks_like_json": creds.strip().startswith("{") if creds else None,
+    }
 
 # Mount static frontend directory (development only)
 if settings.ENV == "development" and not settings.VERCEL:
