@@ -184,3 +184,16 @@ class DraftData:
         d = asdict(self)
         d["generated_at"] = serialize_datetime(self.generated_at)
         return d
+
+@dataclass
+class PublishedPostData:
+    story_id: int
+    post_text: str
+    published_at: datetime = field(default_factory=datetime.utcnow)
+    x_url: Optional[str] = None
+    id: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["published_at"] = serialize_datetime(self.published_at)
+        return d

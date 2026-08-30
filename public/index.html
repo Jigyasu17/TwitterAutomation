@@ -312,6 +312,40 @@
                     </div>
                 </div>
 
+                <!-- Draft Panel Section -->
+                <div class="modal-section" style="border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h3>X / Twitter Draft</h3>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button id="modal-draft-btn" class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+                                <span class="spinner" id="modal-draft-spinner" style="width: 10px; height: 10px;"></span>
+                                <span class="btn-text">Generate Draft</span>
+                            </button>
+                            <button id="modal-draft-regenerate-btn" class="btn btn-secondary hidden" style="padding: 0.35rem 0.75rem; font-size: 0.75rem;">
+                                <span class="spinner" id="modal-draft-regenerate-spinner" style="width: 10px; height: 10px;"></span>
+                                <span class="btn-text">Regenerate</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="modal-draft-status-bar" class="hidden" style="background: rgba(0,0,0,0.25); padding: 0.6rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+                        <span>Draft Status: <strong id="modal-draft-status" class="text-accent" style="text-transform: uppercase;">NEW</strong></span>
+                        <div style="display: flex; gap: 0.4rem;">
+                            <button id="modal-draft-save-btn" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Save Edit</button>
+                            <button id="modal-draft-publish-btn" class="btn btn-primary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Mark as Posted</button>
+                            <button id="modal-draft-discard-btn" class="btn btn-danger" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Discard</button>
+                        </div>
+                    </div>
+
+                    <div id="modal-draft-content" class="hidden">
+                        <label for="modal-draft-post-text" style="font-size: 0.75rem; color: var(--text-muted); display:block; margin-bottom:0.35rem;">Tweet Text (<span id="modal-draft-char-count">0</span>/280)</label>
+                        <textarea id="modal-draft-post-text" placeholder="Generate a draft to see tweet text here..." style="width: 100%; min-height: 80px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
+                        <button type="button" id="modal-draft-copy-btn" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.7rem; margin-top: 0.5rem;">Copy Tweet</button>
+
+                        <div id="modal-draft-thread-container" style="margin-top: 1rem;"></div>
+                    </div>
+                </div>
+
                 <!-- Linked Sources List -->
                 <div class="modal-section">
                     <h3>Associated Sources & Publisher Reports (<span id="modal-source-count">0</span>)</h3>

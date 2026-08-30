@@ -85,6 +85,23 @@ const modalResearchReportContent = document.getElementById('modal-research-repor
 const modalMarkReviewedBtn = document.getElementById('modal-mark-reviewed-btn');
 const modalMarkNeedsReviewBtn = document.getElementById('modal-mark-needs-review-btn');
 
+// Modal Draft Panel Elements
+const modalDraftBtn = document.getElementById('modal-draft-btn');
+const modalDraftSpinner = document.getElementById('modal-draft-spinner');
+const modalDraftRegenerateBtn = document.getElementById('modal-draft-regenerate-btn');
+const modalDraftRegenerateSpinner = document.getElementById('modal-draft-regenerate-spinner');
+const modalDraftStatusBar = document.getElementById('modal-draft-status-bar');
+const modalDraftStatus = document.getElementById('modal-draft-status');
+const modalDraftContent = document.getElementById('modal-draft-content');
+const modalDraftPostText = document.getElementById('modal-draft-post-text');
+const modalDraftCharCount = document.getElementById('modal-draft-char-count');
+const modalDraftCopyBtn = document.getElementById('modal-draft-copy-btn');
+const modalDraftThreadContainer = document.getElementById('modal-draft-thread-container');
+const modalDraftSaveBtn = document.getElementById('modal-draft-save-btn');
+const modalDraftPublishBtn = document.getElementById('modal-draft-publish-btn');
+const modalDraftDiscardBtn = document.getElementById('modal-draft-discard-btn');
+let activeDraftId = null;
+
 // Initial Setup
 document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
@@ -138,6 +155,7 @@ function initEventListeners() {
     modalClose.addEventListener('click', () => {
         detailModal.classList.add('hidden');
         activeStoryId = null;
+        activeDraftId = null;
     });
 
     // Click outside modal content closes it
@@ -145,6 +163,7 @@ function initEventListeners() {
         if (e.target === detailModal) {
             detailModal.classList.add('hidden');
             activeStoryId = null;
+            activeDraftId = null;
         }
     });
 
@@ -155,6 +174,17 @@ function initEventListeners() {
     // Mark reviewed / needs review buttons
     modalMarkReviewedBtn.addEventListener('click', () => updateResearchStatus('COMPLETED'));
     modalMarkNeedsReviewBtn.addEventListener('click', () => updateResearchStatus('NEEDS_REVIEW'));
+
+    // Modal Draft Panel Buttons
+    modalDraftBtn.addEventListener('click', () => handleGenerateDraft(false));
+    modalDraftRegenerateBtn.addEventListener('click', () => handleGenerateDraft(true));
+    modalDraftCopyBtn.addEventListener('click', () => copyToClipboard(modalDraftPostText.value, 'Tweet copied to clipboard'));
+    modalDraftSaveBtn.addEventListener('click', handleSaveDraftEdit);
+    modalDraftPublishBtn.addEventListener('click', handlePublishDraft);
+    modalDraftDiscardBtn.addEventListener('click', handleDiscardDraft);
+    modalDraftPostText.addEventListener('input', () => {
+        modalDraftCharCount.textContent = modalDraftPostText.value.length;
+    });
 
     // Event delegation on story cards
     storiesGrid.addEventListener('click', async (e) => {
@@ -513,6 +543,185 @@ async function updateResearchStatus(newStatus) {
     }
 }
 
+// --- Draft Panel (X/Twitter module) ---
+
+// Fetches the current draft for a story and renders it, or leaves the
+// "Generate Draft" button showing if none exists yet.
+async function fetchAndRenderDraft(storyId) {
+    modalDraftContent.classList.add('hidden');
+    modalDraftStatusBar.classList.add('hidden');
+    modalDraftBtn.classList.remove('hidden');
+    modalDraftRegenerateBtn.classList.add('hidden');
+    activeDraftId = null;
+
+    try {
+        const response = await fetch(`/api/stories/${storyId}/draft`, { cache: 'no-store' });
+        if (response.status === 404) {
+            return;
+        }
+        if (!response.ok) throw new Error('Draft fetch failed');
+        const draft = await response.json();
+        renderDraft(draft);
+    } catch (err) {
+        console.error('Error fetching draft:', err);
+    }
+}
+
+function renderDraft(draft) {
+    activeDraftId = draft.id;
+
+    modalDraftBtn.classList.add('hidden');
+    modalDraftRegenerateBtn.classList.remove('hidden');
+    modalDraftStatusBar.classList.remove('hidden');
+    modalDraftContent.classList.remove('hidden');
+
+    modalDraftStatus.textContent = draft.status;
+    if (draft.status === 'POSTED') {
+        modalDraftStatus.className = 'text-success';
+    } else if (draft.status === 'DISCARDED') {
+        modalDraftStatus.className = 'text-danger';
+    } else {
+        modalDraftStatus.className = 'text-accent';
+    }
+
+    const displayText = draft.edited_text || draft.post_text;
+    modalDraftPostText.value = displayText;
+    modalDraftCharCount.textContent = displayText.length;
+
+    modalDraftThreadContainer.innerHTML = '';
+    if (draft.thread_json && draft.thread_json.length > 0) {
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.35rem;';
+        label.textContent = 'Thread:';
+        modalDraftThreadContainer.appendChild(label);
+
+        draft.thread_json.forEach((tweet, idx) => {
+            const item = document.createElement('div');
+            item.style.cssText = 'display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.85rem;';
+
+            const span = document.createElement('span');
+            span.style.cssText = 'flex: 1;';
+            span.textContent = `${idx + 2}. ${tweet}`;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-secondary';
+            btn.style.cssText = 'padding: 0.15rem 0.5rem; font-size: 0.65rem; white-space: nowrap;';
+            btn.textContent = 'Copy';
+            btn.addEventListener('click', () => copyToClipboard(tweet, `Tweet ${idx + 2} copied`));
+
+            item.appendChild(span);
+            item.appendChild(btn);
+            modalDraftThreadContainer.appendChild(item);
+        });
+    }
+}
+
+function setModalDraftLoading(loading, isRegenerate = false) {
+    if (loading) {
+        if (isRegenerate) {
+            modalDraftRegenerateBtn.disabled = true;
+            modalDraftRegenerateSpinner.style.display = 'inline-block';
+        } else {
+            modalDraftBtn.disabled = true;
+            modalDraftSpinner.style.display = 'inline-block';
+        }
+    } else {
+        modalDraftBtn.disabled = false;
+        modalDraftSpinner.style.display = 'none';
+        modalDraftRegenerateBtn.disabled = false;
+        modalDraftRegenerateSpinner.style.display = 'none';
+    }
+}
+
+async function handleGenerateDraft(force = false) {
+    if (!activeStoryId) return;
+    try {
+        setModalDraftLoading(true, force);
+        showToast(force ? 'Regenerating draft...' : 'Generating draft...', 'info');
+
+        const url = `/api/stories/${activeStoryId}/draft${force ? '?force=true' : ''}`;
+        const response = await fetch(url, { method: 'POST' });
+        if (!response.ok) throw new Error('Draft generation failed');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            showToast('Draft ready', 'success');
+            renderDraft(result.draft);
+        } else {
+            showToast('Draft generation failed', 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error generating draft', 'error');
+    } finally {
+        setModalDraftLoading(false, force);
+    }
+}
+
+async function handleSaveDraftEdit() {
+    if (!activeDraftId) return;
+    try {
+        const response = await fetch(`/api/drafts/${activeDraftId}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ edited_text: modalDraftPostText.value })
+        });
+        if (!response.ok) throw new Error('Save failed');
+        const result = await response.json();
+        showToast('Draft edit saved', 'success');
+        renderDraft(result.draft);
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to save draft edit', 'error');
+    }
+}
+
+async function handlePublishDraft() {
+    if (!activeDraftId) return;
+    const xUrl = window.prompt("Optional: paste the tweet's URL once you've posted it (leave blank to skip, Cancel to abort):");
+    if (xUrl === null) return;
+
+    try {
+        const response = await fetch(`/api/drafts/${activeDraftId}/publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x_url: xUrl || null })
+        });
+        if (!response.ok) throw new Error('Publish failed');
+        showToast('Marked as posted', 'success');
+        fetchAndRenderDraft(activeStoryId);
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to mark draft as posted', 'error');
+    }
+}
+
+async function handleDiscardDraft() {
+    if (!activeDraftId) return;
+    if (!window.confirm('Discard this draft? This cannot be undone.')) return;
+
+    try {
+        const response = await fetch(`/api/drafts/${activeDraftId}/discard`, { method: 'POST' });
+        if (!response.ok) throw new Error('Discard failed');
+        showToast('Draft discarded', 'info');
+        fetchAndRenderDraft(activeStoryId);
+    } catch (err) {
+        console.error(err);
+        showToast('Failed to discard draft', 'error');
+    }
+}
+
+async function copyToClipboard(text, successMessage) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast(successMessage, 'success');
+    } catch (err) {
+        console.error('Clipboard copy failed:', err);
+        showToast('Could not copy to clipboard', 'error');
+    }
+}
+
 // Actions approval / rejections
 async function handleApprove(storyId) {
     try {
@@ -744,6 +953,10 @@ function handleDetails(storyId) {
         modalMarkReviewedBtn.classList.add('hidden');
         modalMarkNeedsReviewBtn.classList.add('hidden');
     }
+
+    // Draft panel starts fresh for whichever story is opened; fetched async
+    // below since drafts aren't embedded in the story object like research is.
+    fetchAndRenderDraft(storyId);
 
     // Display modal
     detailModal.classList.remove('hidden');

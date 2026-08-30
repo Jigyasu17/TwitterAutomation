@@ -1,5 +1,5 @@
 from typing import Protocol, List, Optional, Dict, Any
-from app.domain.models import StoryData, ResearchReportData, ResearchSourceData, ResearchFactData, ResearchConflictData
+from app.domain.models import StoryData, ResearchReportData, ResearchSourceData, ResearchFactData, ResearchConflictData, DraftData, PublishedPostData
 
 class StoryRepository(Protocol):
     def get_by_id(self, story_id: int) -> Optional[StoryData]:
@@ -109,4 +109,30 @@ class ResearchRepository(Protocol):
 
     def clear_report_facts_and_conflicts(self, report_id: int) -> None:
         """Deletes all facts and conflicts associated with a report to reset state."""
+        ...
+
+
+class DraftRepository(Protocol):
+    def get_draft_by_story_id(self, story_id: int) -> Optional[DraftData]:
+        """Retrieves the draft associated with a given story ID, if any."""
+        ...
+
+    def get_draft_by_id(self, draft_id: int) -> Optional[DraftData]:
+        """Retrieves a draft by its primary ID."""
+        ...
+
+    def save_draft(self, draft: DraftData) -> DraftData:
+        """Saves or updates a Draft instance."""
+        ...
+
+    def get_drafts(self, status: str = "all", limit: int = 50) -> List[DraftData]:
+        """Lists drafts, optionally filtered by status."""
+        ...
+
+    def mark_published(self, draft_id: int, x_url: Optional[str] = None) -> PublishedPostData:
+        """Creates a PublishedPost record from a draft and flips the draft's status to POSTED."""
+        ...
+
+    def discard_draft(self, draft_id: int) -> DraftData:
+        """Sets a draft's status to DISCARDED."""
         ...

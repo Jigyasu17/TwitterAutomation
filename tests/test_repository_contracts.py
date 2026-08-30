@@ -2,11 +2,13 @@ import pytest
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
-from app.domain.models import StoryData, StorySourceData, ResearchReportData, ResearchSourceData, ResearchFactData, ResearchConflictData
+from app.domain.models import StoryData, StorySourceData, ResearchReportData, ResearchSourceData, ResearchFactData, ResearchConflictData, DraftData
 from app.repositories.sqlite.story_repository import SQLStoryRepository
 from app.repositories.sqlite.research_repository import SQLResearchRepository
+from app.repositories.sqlite.draft_repository import SQLDraftRepository
 from app.repositories.firestore.story_repository import FirestoreStoryRepository
 from app.repositories.firestore.research_repository import FirestoreResearchRepository
+from app.repositories.firestore.draft_repository import FirestoreDraftRepository
 
 # --- Mock Firestore Client for Offline Contract Testing ---
 
@@ -298,6 +300,62 @@ def execute_research_contract(research_repo, story_id):
     assert len(unresolved_after) == 0
 
 
+def execute_draft_contract(draft_repo, story_id):
+    """Executes identical DraftRepository behavior contracts."""
+    # 1. No draft yet
+    assert draft_repo.get_draft_by_story_id(story_id) is None
+
+    # 2. Save new draft
+    draft = DraftData(
+        story_id=story_id,
+        post_text="Test company raises $10M in funding",
+        thread_json=["Why it matters: test", "Source: https://example.com"],
+        image_headline="Test Headline",
+        image_subheadline="FUNDING",
+        status="NEW"
+    )
+    saved = draft_repo.save_draft(draft)
+    assert saved.id is not None
+    assert saved.thread_json == ["Why it matters: test", "Source: https://example.com"]
+
+    # 3. Retrieve by story id
+    fetched = draft_repo.get_draft_by_story_id(story_id)
+    assert fetched is not None
+    assert str(fetched.id) == str(saved.id)
+
+    # 4. Retrieve by draft id
+    fetched_by_id = draft_repo.get_draft_by_id(saved.id)
+    assert fetched_by_id is not None
+    assert fetched_by_id.post_text == saved.post_text
+
+    # 5. Update (edit)
+    fetched.edited_text = "Edited version"
+    fetched.status = "EDITED"
+    updated = draft_repo.save_draft(fetched)
+    assert updated.status == "EDITED"
+    assert updated.edited_text == "Edited version"
+
+    # 6. List drafts
+    all_drafts = draft_repo.get_drafts(status="all")
+    assert len(all_drafts) >= 1
+    edited_drafts = draft_repo.get_drafts(status="EDITED")
+    assert any(str(d.id) == str(saved.id) for d in edited_drafts)
+
+    # 7. Mark published (uses edited_text over post_text when present)
+    published = draft_repo.mark_published(saved.id, x_url="https://x.com/test/status/1")
+    assert published.id is not None
+    assert published.post_text == "Edited version"
+    assert published.x_url == "https://x.com/test/status/1"
+
+    republished_draft = draft_repo.get_draft_by_id(saved.id)
+    assert republished_draft.status == "POSTED"
+
+    # 8. Discard a separate draft
+    other_draft = draft_repo.save_draft(DraftData(story_id=story_id, post_text="Another draft", status="NEW"))
+    discarded = draft_repo.discard_draft(other_draft.id)
+    assert discarded.status == "DISCARDED"
+
+
 # --- Pytest Contract Runner Triggers ---
 
 def test_sqlite_story_contract(db_session):
@@ -321,3 +379,14 @@ def test_firestore_research_contract():
     mock_client = MockFirestoreClient()
     research_repo = FirestoreResearchRepository(client=mock_client)
     execute_research_contract(research_repo, story_id="story_firestore_123")
+
+def test_sqlite_draft_contract(db_session):
+    """Runs DraftRepository contracts against SQLite adapter."""
+    draft_repo = SQLDraftRepository(db_session)
+    execute_draft_contract(draft_repo, story_id=456)
+
+def test_firestore_draft_contract():
+    """Runs DraftRepository contracts against mocked Firestore adapter."""
+    mock_client = MockFirestoreClient()
+    draft_repo = FirestoreDraftRepository(client=mock_client)
+    execute_draft_contract(draft_repo, story_id="story_firestore_456")

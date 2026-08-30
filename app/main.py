@@ -8,6 +8,7 @@ from app.config import settings
 from app.database.database import init_db
 from app.api.routes_stories import router as stories_router
 from app.api.routes_stats import router as stats_router
+from app.api.routes_drafts import router as drafts_router
 
 # Configure logging based on environment
 handlers = [logging.StreamHandler()]
@@ -82,6 +83,7 @@ async def no_store_api_responses(request: Request, call_next):
 # Register routers
 app.include_router(stories_router)
 app.include_router(stats_router)
+app.include_router(drafts_router)
 
 @app.get("/api/diagnose")
 @app.get("/diagnose")
