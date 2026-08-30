@@ -24,6 +24,33 @@
     "category": "MARKET",
     "country": "India",
     "enabled": true,
+    "priority": 1
+  },
+  {
+    "name": "Sensex Nifty Share Market Today",
+    "url": "https://news.google.com/rss/search?q=Sensex+Nifty+share+market+today&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "MARKET",
+    "country": "India",
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "name": "Nifty Bank Nifty Stock Movement",
+    "url": "https://news.google.com/rss/search?q=stocks+shares+jump+surge+fall+NSE+BSE&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "STOCK",
+    "country": "India",
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "name": "Quarterly Results Indian Companies",
+    "url": "https://news.google.com/rss/search?q=quarterly+results+earnings+Indian+companies&hl=en-IN&gl=IN&ceid=IN:en",
+    "type": "google_news",
+    "category": "STOCK",
+    "country": "India",
+    "enabled": true,
     "priority": 2
   },
   {
@@ -36,29 +63,11 @@
     "priority": 2
   },
   {
-    "name": "India Startup Funding",
-    "url": "https://news.google.com/rss/search?q=India+startup+funding&hl=en-IN&gl=IN&ceid=IN:en",
-    "type": "google_news",
-    "category": "STARTUP",
-    "country": "India",
-    "enabled": true,
-    "priority": 2
-  },
-  {
     "name": "India Business News",
     "url": "https://news.google.com/rss/search?q=India+business+news&hl=en-IN&gl=IN&ceid=IN:en",
     "type": "google_news",
     "category": "BUSINESS",
     "country": "India",
-    "enabled": true,
-    "priority": 2
-  },
-  {
-    "name": "TechCrunch Startups",
-    "url": "https://techcrunch.com/feed/",
-    "type": "rss",
-    "category": "TECH",
-    "country": "Global",
     "enabled": true,
     "priority": 3
   }
