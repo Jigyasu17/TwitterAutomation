@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
@@ -91,3 +91,19 @@ if settings.ENV == "development" and not settings.VERCEL:
         
     if static_dir.exists():
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+
+# TEMPORARY ROUTING DIAGNOSTIC — remove once /api/* is confirmed working on Vercel.
+# Registered last so it only catches requests that no route above already matched.
+# Reveals the exact ASGI scope path Vercel's function adapter hands to Starlette,
+# since production requests to registered routes (e.g. /api/stories) are currently
+# returning a generic 404 as if no route matches at all.
+@app.api_route("/{full_path:path}", methods=["GET", "POST"])
+async def debug_catch_all(full_path: str, request: Request):
+    return {
+        "caught_by": "catch_all",
+        "full_path_param": full_path,
+        "scope_path": request.scope.get("path"),
+        "raw_path": request.scope.get("raw_path", b"").decode("utf-8", "replace"),
+        "method": request.method,
+        "query_params": dict(request.query_params),
+    }
