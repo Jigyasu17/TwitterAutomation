@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.config import settings
 from app.repositories.interfaces import StoryRepository, ResearchRepository
 from app.repositories.factory import get_story_repo, get_research_repo
-from app.api.auth import verify_cron_auth, verify_admin_auth
+from app.api.auth import verify_cron_auth
 from app.jobs.collection_job import run_news_collection
 from app.jobs.processing_job import run_story_processing
 from app.jobs.research_job import run_research_job
@@ -44,7 +44,7 @@ def get_stories(
         logger.error(f"Error fetching stories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Database query error.")
 
-@router.post("/api/stories/{story_id}/reject", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/reject")
 def reject_story(story_id: str, story_repo: StoryRepository = Depends(get_story_repo)):
     """Rejects a story event."""
     story = story_repo.get_by_id(story_id)
@@ -56,7 +56,7 @@ def reject_story(story_id: str, story_repo: StoryRepository = Depends(get_story_
     logger.info(f"Story {story_id} was manually REJECTED.")
     return {"status": "success", "message": f"Story {story_id} status updated to REJECTED."}
 
-@router.post("/api/stories/{story_id}/approve", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/approve")
 def approve_story(story_id: str, story_repo: StoryRepository = Depends(get_story_repo)):
     """Approves a story event."""
     story = story_repo.get_by_id(story_id)
@@ -68,7 +68,7 @@ def approve_story(story_id: str, story_repo: StoryRepository = Depends(get_story
     logger.info(f"Story {story_id} was manually APPROVED.")
     return {"status": "success", "message": f"Story {story_id} status updated to APPROVED."}
 
-@router.post("/api/collect", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/collect")
 def collect_news(story_repo: StoryRepository = Depends(get_story_repo)):
     """Triggers the collector crawl across feeds (Legacy router)."""
     result = run_news_collection(story_repo)
@@ -76,7 +76,7 @@ def collect_news(story_repo: StoryRepository = Depends(get_story_repo)):
         raise HTTPException(status_code=500, detail=result.get("message"))
     return result
 
-@router.post("/api/process", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/process")
 def process_new_stories(story_repo: StoryRepository = Depends(get_story_repo)):
     """Triggers the pipeline manual processing run for all NEW unprocessed stories (Legacy router)."""
     try:
@@ -90,7 +90,7 @@ def process_new_stories(story_repo: StoryRepository = Depends(get_story_repo)):
         logger.error(f"Manual processing trigger failed: {e}")
         raise HTTPException(status_code=500, detail="Processing error occurred.")
 
-@router.post("/api/stories/{story_id}/process", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/process")
 def process_single_story(story_id: str, story_repo: StoryRepository = Depends(get_story_repo)):
     """Manually triggers processing on a single story (re-evaluates classification and scores)."""
     story = story_repo.get_by_id(story_id)
@@ -134,7 +134,7 @@ def process_single_story(story_id: str, story_repo: StoryRepository = Depends(ge
 
 # --- Research Engine Endpoints ---
 
-@router.post("/api/stories/{story_id}/research", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/research")
 def trigger_research(
     story_id: str, 
     story_repo: StoryRepository = Depends(get_story_repo),
@@ -152,7 +152,7 @@ def trigger_research(
         logger.error(f"Failed to trigger research for story #{story_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to run research.")
 
-@router.post("/api/stories/{story_id}/research-again", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/research-again")
 def trigger_research_again(
     story_id: str, 
     story_repo: StoryRepository = Depends(get_story_repo),
@@ -197,7 +197,7 @@ def get_research_queue(
         logger.error(f"Error fetching research queue: {e}")
         raise HTTPException(status_code=500, detail="Error fetching queue.")
 
-@router.post("/api/research/process", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/research/process")
 def process_research_queue_job(
     min_importance: int = Query(70, description="Min importance score"),
     min_postability: int = Query(75, description="Min postability score"),

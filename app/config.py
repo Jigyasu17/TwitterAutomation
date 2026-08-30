@@ -30,9 +30,8 @@ class Config:
     # Dev-only APScheduler controller
     START_LOCAL_SCHEDULER: bool = (os.getenv("START_LOCAL_SCHEDULER", "1") == "1") and (ENV == "development") and not VERCEL
 
-    # Auth for production-only endpoints (skipped when ENV == "development")
+    # Auth for the cron-triggered job endpoints (skipped when ENV == "development")
     CRON_SECRET: str = os.getenv("CRON_SECRET", "")
-    ADMIN_SECRET: str = os.getenv("ADMIN_SECRET", "")
 
     # AI
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "none")
