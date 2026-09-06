@@ -1,37 +1,42 @@
 # MarketPulse Security Integration Checklist
 
-## Current state (deliberate choice, not an oversight)
+**Status: implemented.** Every mutating endpoint below requires an `Authorization: Bearer <token>` header in production; nothing is exposed unauthenticated except explicitly read-only routes.
 
-The manual/dashboard-facing endpoints below are **intentionally left open with no auth**:
-- `POST /api/collect`, `POST /api/process`
-- `POST /api/stories/{story_id}/approve`, `POST /api/stories/{story_id}/reject`, `POST /api/stories/{story_id}/process`
-- `POST /api/stories/{story_id}/research`, `POST /api/stories/{story_id}/research-again`, `POST /api/research/process`
+---
 
-An `ADMIN_SECRET`-based token check was implemented and then deliberately removed at the project
-owner's request — the priority right now is getting the data pipeline itself working end-to-end;
-hardening the manual endpoints can come back once that's solid. *Abuse risk if this URL becomes
-widely known*: anyone could trigger crawls, spam research requests, or flip story statuses. Low
-practical risk today since the deployment URL is an unlisted `*.vercel.app` address, but revisit
-before sharing the URL publicly or pointing a custom domain at it.
+## 1. Protected Endpoints
 
-The cron job endpoints remain protected — these are never clicked by a person, so protecting them
-costs no usability:
+### A. Standalone Cron Jobs — `verify_cron_auth` (`CRON_SECRET`)
 - `GET/POST /api/jobs/collect`, `/api/jobs/process`, `/api/jobs/research`
+- Sent automatically by Vercel Cron as `Authorization: Bearer <CRON_SECRET>` once the env var is set on the project — never seen or typed by a human.
 
-## Cron Job Auth (still active)
+### B. Manual Dashboard-Triggered Endpoints — `verify_admin_auth` (`ADMIN_SECRET`)
+- `POST /api/collect`, `POST /api/process`
+- `POST /api/stories/{story_id}/approve`, `.../reject`, `.../process`
+- `POST /api/stories/{story_id}/research`, `.../research-again`
+- `POST /api/research/process`
+- `POST /api/stories/{story_id}/draft` (generate/regenerate)
+- `POST /api/drafts/{draft_id}/edit`, `.../publish`, `.../discard`
 
-`CRON_SECRET` is an environment variable (see `.env.example`). Vercel Cron automatically sends
-`Authorization: Bearer <CRON_SECRET>` on every cron invocation once the variable is set on the
-Vercel project. The dependency function `verify_cron_auth` in `app/api/auth.py` checks this
-header, skipped when `settings.ENV == "development"`.
+*Abuse risk if unprotected*: anyone with the URL could trigger crawls, spam research requests, flip story statuses, or publish/discard drafts.
 
-## Re-adding manual-endpoint auth later
+### C. Intentionally open (read-only, no mutation)
+`GET /api/stories`, `GET /api/stats`, `GET /api/research/queue`, `GET /api/stories/{story_id}/research`, `GET /api/stories/{story_id}/draft`, `GET /api/drafts`, `GET /api/diagnose`.
 
-If/when this comes back: `app/api/auth.py` previously had a `verify_admin_auth` function mirroring
-`verify_cron_auth` but checking an `ADMIN_SECRET` env var instead, wired onto each route via
-`dependencies=[Depends(verify_admin_auth)]` in `app/api/routes_stories.py`. The frontend
-(`public/js/dashboard.js`) had a matching `authedFetch()` wrapper that sent the token from
-`localStorage` and prompted for it once on a `401`. Both are straightforward to reintroduce from
-git history (see the commit that added them) once manual-endpoint hardening is prioritized again —
-at that point, also consider whether a real login/session mechanism would suit better than a
-shared secret, since a shared secret has no per-user audit trail or revocation.
+---
+
+## 2. Authentication mechanics
+
+Both `verify_cron_auth` and `verify_admin_auth` (`app/api/auth.py`) are skipped entirely when `settings.ENV == "development"` — local iteration needs no token. In production, each checks `Authorization: Bearer <value>` against its respective env var (`CRON_SECRET` / `ADMIN_SECRET`), 401s otherwise.
+
+**Dashboard (browser-side)**: `public/js/dashboard.js`'s `authedFetch()` wraps every mutating call (collect, process, approve, reject, research trigger/rerun, draft generate/edit/publish/discard). It sends `Authorization: Bearer <token>` from that browser's `localStorage`; on a `401` it prompts once for the token and remembers it. The token is never embedded in the shipped JS file itself (served publicly from the CDN, viewable by anyone) — it only ever lives in the browser of whoever the operator gives it to.
+
+This is a stopgap appropriate for a single-operator dashboard, not a multi-user auth system: anyone holding the token can act as admin, with no per-user audit trail or revocation. If this ever needs multiple distinguishable users, replace it with a real login/session mechanism rather than extending the shared-secret model further.
+
+## 3. Deployment checklist
+
+Before going live, set in Vercel's production environment variables:
+- `CRON_SECRET` — any long random value; Vercel Cron picks it up automatically once set.
+- `ADMIN_SECRET` — any long random value; share it out-of-band (not in chat/email in plaintext if avoidable) with whoever operates the dashboard.
+
+Without `ADMIN_SECRET` set, `verify_admin_auth` fails closed (rejects every request) rather than silently allowing access — a missing secret is a hard 401, never an open door.

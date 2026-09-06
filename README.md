@@ -17,6 +17,38 @@ In this milestone, we have built the core data-collection foundation, including:
 
 ---
 
+## News-Quality & X-Generation Overhaul
+
+Layered on top of Milestone 1 without changing its architecture:
+
+- **Source quality tiers** (`app/processing/source_quality.py`): regulators/exchanges > established
+  financial media > general business media > unrecognized sources, feeding both scoring and
+  research confidence.
+- **India-relevance gate** (`app/processing/relevance.py`) and **noise filter**
+  (`app/processing/noise_filter.py`): down-rank or reject generic listicles, motivational fluff,
+  and stories with no Indian market connection — combining title/summary/entities/event-type
+  signals rather than keyword-matching alone.
+- **Event-fingerprint deduplication** (Level 5 in `app/processing/deduplication.py`): clusters
+  differently-worded coverage of the same underlying event (e.g. "shares rise 8%" vs. "profit
+  jumps 42%") by company + event type + time window, not just title-text similarity.
+- **"Why this story ranked" transparency**: every story's `scoring_breakdown` now includes x/10
+  ratings (market relevance, financial materiality, India relevance, freshness, source quality,
+  investor relevance) and a one-line `key_reason`, visible in the dashboard's story detail modal.
+- **Hook-strategy drafting engine** (`app/drafts/engine.py`, `app/drafts/hooks.py`): generates
+  multiple angle candidates per story from structured research intelligence
+  (`app/research/intelligence.py`), runs them through an anti-headline-rewrite check and a quality
+  scorer (`app/drafts/quality.py`), and picks the strongest — with the previous single-template
+  behavior preserved as the guaranteed-safe deterministic fallback.
+- **Optional AI-assisted drafting** (`app/drafts/ai_provider.py`): if `AI_PROVIDER=ollama` is
+  configured with a reachable local Ollama host, one AI-generated candidate competes on equal
+  footing with the deterministic angles (same quality/fact-safety checks); production works
+  identically with no AI configured (`AI_PROVIDER=none`, the default).
+
+See `docs/firestore_indexes.md` for the Firestore composite-index status and
+`docs/vercel_project_rename.md` for cleaning up the public deployment URL.
+
+---
+
 ## Windows Installation & Setup
 
 1. **Verify Python Installation** (requires Python 3.11+):

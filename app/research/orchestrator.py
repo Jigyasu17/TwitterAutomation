@@ -176,7 +176,11 @@ def research_story(*args, **kwargs) -> str:
             report.status = "COMPLETED"
 
         research_repo.save_report(report)
-        logger.info(f"Research pipeline successfully completed for Story #{story_id} (Status: {report.status}, Confidence: {confidence})")
+        logger.info(
+            f"Research completed for Story #{story_id}: status={report.status} confidence={confidence} "
+            f"sources={len(sources_map_core)} facts={len(verified_facts)} "
+            f"open_conflicts={sum(1 for c in saved_conflicts if c.status == 'OPEN')}"
+        )
         return report.status
 
     except Exception as e:

@@ -17,6 +17,11 @@ def map_draft_orm_to_domain(draft_orm: Draft) -> DraftData:
     except Exception:
         thread = None
 
+    try:
+        angles = json.loads(draft_orm.angles_json) if getattr(draft_orm, "angles_json", None) else None
+    except Exception:
+        angles = None
+
     return DraftData(
         id=draft_orm.id,
         story_id=draft_orm.story_id,
@@ -26,7 +31,11 @@ def map_draft_orm_to_domain(draft_orm: Draft) -> DraftData:
         image_subheadline=draft_orm.image_subheadline,
         generated_at=draft_orm.generated_at,
         edited_text=draft_orm.edited_text,
-        status=draft_orm.status
+        status=draft_orm.status,
+        angles=angles,
+        quality_score=getattr(draft_orm, "quality_score", None),
+        hook_strategy=getattr(draft_orm, "hook_strategy", None),
+        ai_used=bool(getattr(draft_orm, "ai_used", False)),
     )
 
 def update_draft_orm_from_domain(draft_orm: Draft, draft_data: DraftData) -> None:
@@ -37,6 +46,10 @@ def update_draft_orm_from_domain(draft_orm: Draft, draft_data: DraftData) -> Non
     draft_orm.image_subheadline = draft_data.image_subheadline
     draft_orm.edited_text = draft_data.edited_text
     draft_orm.status = draft_data.status
+    draft_orm.angles_json = json.dumps(draft_data.angles) if draft_data.angles else None
+    draft_orm.quality_score = draft_data.quality_score
+    draft_orm.hook_strategy = draft_data.hook_strategy
+    draft_orm.ai_used = bool(draft_data.ai_used)
 
 def map_published_post_orm_to_domain(post_orm: PublishedPost) -> PublishedPostData:
     return PublishedPostData(

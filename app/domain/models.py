@@ -138,6 +138,11 @@ class StoryData:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
     id: Optional[int] = None
+    # Set when status == "MERGED" by the one-time retroactive reconciliation
+    # (app/processing/reconciliation.py) — points at the surviving primary
+    # story's ID. The merged-away row itself, its sources, and any research
+    # report are never deleted, just excluded from the live feed.
+    merged_into_id: Optional[Any] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -165,8 +170,18 @@ class StoryData:
             "sources": [s.to_dict() for s in self.sources],
             "research_report": self.research_report.to_dict() if self.research_report else None,
             "created_at": serialize_datetime(self.created_at),
-            "updated_at": serialize_datetime(self.updated_at)
+            "updated_at": serialize_datetime(self.updated_at),
+            "merged_into_id": self.merged_into_id,
         }
+
+@dataclass
+class DraftAngle:
+    strategy: str
+    text: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
 
 @dataclass
 class DraftData:
@@ -178,6 +193,14 @@ class DraftData:
     generated_at: datetime = field(default_factory=datetime.utcnow)
     edited_text: Optional[str] = None
     status: str = "NEW"
+    # Multi-angle generation + quality-control metadata: the alternate
+    # angles considered besides the selected post_text, the quality score
+    # that picked the winner, which hook strategy it used, and whether an
+    # AI provider (vs. the deterministic fallback) produced it.
+    angles: Optional[List[Dict[str, str]]] = None
+    quality_score: Optional[int] = None
+    hook_strategy: Optional[str] = None
+    ai_used: bool = False
     id: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:

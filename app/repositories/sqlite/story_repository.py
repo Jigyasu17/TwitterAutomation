@@ -55,6 +55,7 @@ def map_story_orm_to_domain(story_orm: Story, identity_map: Optional[Dict[int, S
         except Exception:
             story_data.scoring_breakdown = {}
         story_data.status = story_orm.status
+        story_data.merged_into_id = story_orm.merged_into_id
         story_data.sources = [map_source_orm_to_domain(src) for src in story_orm.sources]
         
         report_data = None
@@ -106,6 +107,7 @@ def map_story_orm_to_domain(story_orm: Story, identity_map: Optional[Dict[int, S
         final_score=story_orm.final_score,
         scoring_breakdown=parsed_breakdown,
         status=story_orm.status,
+        merged_into_id=story_orm.merged_into_id,
         sources=[map_source_orm_to_domain(src) for src in story_orm.sources],
         research_report=report_data,
         created_at=story_orm.created_at,
@@ -138,6 +140,7 @@ def update_story_orm_from_domain(story_orm: Story, story_data: StoryData) -> Non
     story_orm.scoring_breakdown = json.dumps(story_data.scoring_breakdown)
     story_orm.status = story_data.status
     story_orm.content_hash = story_data.content_hash
+    story_orm.merged_into_id = story_data.merged_into_id
 
 # --- Repository Implementation ---
 
@@ -245,7 +248,10 @@ class SQLStoryRepository(StoryRepository):
             query = query.filter(Story.category == category)
 
         if status == "all":
-            query = query.filter(Story.status != "REJECTED").filter(Story.status != "FILTERED")
+            # A "MERGED" story (retroactive reconciliation — see
+            # app/processing/reconciliation.py) has folded into another
+            # story's sources and must not also appear as its own feed item.
+            query = query.filter(Story.status != "REJECTED").filter(Story.status != "FILTERED").filter(Story.status != "MERGED")
         elif status != "any" and status:
             query = query.filter(Story.status == status)
 
@@ -268,12 +274,12 @@ class SQLStoryRepository(StoryRepository):
 
     def get_stats(self) -> Dict[str, int]:
         total_articles = self.db.query(StorySource).count()
-        unique_events = self.db.query(Story).filter(Story.status != "REJECTED").count()
+        unique_events = self.db.query(Story).filter(Story.status != "REJECTED", Story.status != "MERGED").count()
         high_priority = self.db.query(Story).filter(
-            and_(Story.status != "REJECTED", Story.status != "FILTERED", Story.final_score >= 75)
+            and_(Story.status != "REJECTED", Story.status != "FILTERED", Story.status != "MERGED", Story.final_score >= 75)
         ).count()
         medium_priority = self.db.query(Story).filter(
-            and_(Story.status != "REJECTED", Story.status != "FILTERED", Story.final_score >= 40, Story.final_score < 75)
+            and_(Story.status != "REJECTED", Story.status != "FILTERED", Story.status != "MERGED", Story.final_score >= 40, Story.final_score < 75)
         ).count()
         rejected = self.db.query(Story).filter(Story.status == "REJECTED").count()
 
@@ -286,14 +292,29 @@ class SQLStoryRepository(StoryRepository):
         }
 
     def find_duplicate_story(
-        self, 
-        article_url: str, 
-        title: str, 
-        similarity_threshold: float = 0.8, 
+        self,
+        article_url: str,
+        title: str,
+        similarity_threshold: float = 0.8,
         lookback_days: int = 7
     ) -> Optional[StoryData]:
         from app.processing.deduplication import find_duplicate_story
         return find_duplicate_story(self, article_url, title, similarity_threshold=similarity_threshold, lookback_days=lookback_days)
+
+    def get_recent_stories_for_dedup(
+        self,
+        lookback_days: int = 7,
+        limit: int = 500,
+    ) -> List[StoryData]:
+        cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+        stories_orm = (
+            self.db.query(Story)
+            .filter(Story.published_at >= cutoff)
+            .order_by(desc(Story.published_at))
+            .limit(limit)
+            .all()
+        )
+        return [map_story_orm_to_domain(s, self._identity_map) for s in stories_orm]
 
     def add_or_merge_story(
         self, 

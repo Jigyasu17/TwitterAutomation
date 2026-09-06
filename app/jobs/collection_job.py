@@ -32,17 +32,19 @@ def run_news_collection(story_repo: StoryRepository) -> dict:
     for src in sources:
         if not src.get("enabled", True):
             continue
-            
+
         collector_type = src.get("type", "rss")
+        source_name = src.get("name")
         try:
             if collector_type == "google_news":
                 collector = GoogleNewsCollector(src)
             else:
                 collector = RSSCollector(src)
-                
+
             fetched_items = collector.fetch()
             total_fetched += len(fetched_items)
-            
+            source_new = 0
+
             for item in fetched_items:
                 story = story_repo.add_or_merge_story(item)
                 # Check if it was a newly created story or a merged duplicate.
@@ -51,10 +53,16 @@ def run_news_collection(story_repo: StoryRepository) -> dict:
                 # every new story with a tracking param gets miscounted as merged.
                 if story.article_url == normalize_url(item["article_url"]):
                     new_stories_count += 1
+                    source_new += 1
+
+            logger.info(
+                f"Ingestion — source='{source_name}' fetched={len(fetched_items)} "
+                f"new={source_new} merged={len(fetched_items) - source_new}"
+            )
         except Exception as e:
-            logger.error(f"Error collecting from source '{src.get('name')}': {e}")
-            failed_sources.append(src.get("name"))
-            
+            logger.error(f"Error collecting from source '{source_name}': {e}")
+            failed_sources.append(source_name)
+
     logger.info(f"News collection run completed. Total: {total_fetched}, New: {new_stories_count}, Merged: {total_fetched - new_stories_count}")
     return {
         "status": "success",

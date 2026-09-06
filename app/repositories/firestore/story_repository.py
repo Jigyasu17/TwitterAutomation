@@ -75,7 +75,8 @@ def map_story_dict_to_domain(doc_id: str, data: dict) -> StoryData:
         status=data.get("status", "NEW"),
         sources=sources,
         created_at=normalize_timestamp(data.get("created_at")),
-        updated_at=normalize_timestamp(data.get("updated_at"))
+        updated_at=normalize_timestamp(data.get("updated_at")),
+        merged_into_id=data.get("merged_into_id"),
     )
 
 def map_story_domain_to_dict(story: StoryData) -> dict:
@@ -103,7 +104,8 @@ def map_story_domain_to_dict(story: StoryData) -> dict:
         "status": story.status,
         "sources": [map_source_domain_to_dict(src) for src in story.sources],
         "created_at": normalize_timestamp(story.created_at or datetime.datetime.utcnow()),
-        "updated_at": normalize_timestamp(story.updated_at or datetime.datetime.utcnow())
+        "updated_at": normalize_timestamp(story.updated_at or datetime.datetime.utcnow()),
+        "merged_into_id": story.merged_into_id,
     }
 
 
@@ -340,14 +342,35 @@ class FirestoreStoryRepository(StoryRepository):
             }
 
     def find_duplicate_story(
-        self, 
-        article_url: str, 
-        title: str, 
-        similarity_threshold: float = 0.8, 
+        self,
+        article_url: str,
+        title: str,
+        similarity_threshold: float = 0.8,
         lookback_days: int = 7
     ) -> Optional[StoryData]:
         from app.processing.deduplication import find_duplicate_story
         return find_duplicate_story(self, article_url, title, similarity_threshold=similarity_threshold, lookback_days=lookback_days)
+
+    def get_recent_stories_for_dedup(
+        self,
+        lookback_days: int = 7,
+        limit: int = 500,
+    ) -> List[StoryData]:
+        try:
+            cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=lookback_days)
+            # Single-field range filter + order-by on that SAME field
+            # (published_at) needs no composite index in Firestore.
+            query = (
+                self.client.collection(self.collection_name)
+                .where("published_at", ">=", cutoff)
+                .order_by("published_at", direction=firestore.Query.DESCENDING)
+                .limit(limit)
+            )
+            docs = query.get()
+            return [map_story_dict_to_domain(d.id, d.to_dict()) for d in docs]
+        except Exception as e:
+            logger.error(f"Firestore error in get_recent_stories_for_dedup: {e}")
+            raise RuntimeError(f"Database error: {e}")
 
     def add_or_merge_story(
         self, 

@@ -21,7 +21,11 @@ def map_draft_dict_to_domain(doc_id: str, data: dict) -> DraftData:
         image_subheadline=data.get("image_subheadline"),
         generated_at=normalize_timestamp(data.get("generated_at")),
         edited_text=data.get("edited_text"),
-        status=data.get("status", "NEW")
+        status=data.get("status", "NEW"),
+        angles=data.get("angles"),
+        quality_score=data.get("quality_score"),
+        hook_strategy=data.get("hook_strategy"),
+        ai_used=bool(data.get("ai_used", False)),
     )
 
 def map_draft_domain_to_dict(draft: DraftData) -> dict:
@@ -37,7 +41,11 @@ def map_draft_domain_to_dict(draft: DraftData) -> dict:
         "image_subheadline": draft.image_subheadline,
         "generated_at": normalize_timestamp(draft.generated_at or datetime.datetime.utcnow()),
         "edited_text": draft.edited_text,
-        "status": draft.status
+        "status": draft.status,
+        "angles": draft.angles,
+        "quality_score": draft.quality_score,
+        "hook_strategy": draft.hook_strategy,
+        "ai_used": bool(draft.ai_used),
     }
 
 def map_published_post_dict_to_domain(doc_id: str, data: dict) -> PublishedPostData:

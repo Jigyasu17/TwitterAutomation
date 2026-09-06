@@ -48,13 +48,29 @@ class StoryRepository(Protocol):
         ...
 
     def find_duplicate_story(
-        self, 
-        article_url: str, 
-        title: str, 
-        similarity_threshold: float = 0.8, 
+        self,
+        article_url: str,
+        title: str,
+        similarity_threshold: float = 0.8,
         lookback_days: int = 7
     ) -> Optional[StoryData]:
         """Checks for existing stories matching url, title hash, or title string similarity."""
+        ...
+
+    def get_recent_stories_for_dedup(
+        self,
+        lookback_days: int = 7,
+        limit: int = 500,
+    ) -> List[StoryData]:
+        """
+        Returns candidate stories for deduplication, ordered by recency
+        (published_at descending) and bounded to the lookback window —
+        NOT by score. A brand-new incoming article is unscored at the exact
+        moment dedup runs (before classification), so a score-ordered pool
+        silently excludes every same-day candidate once the database holds
+        more already-scored stories than the pool's limit. Status is
+        deliberately unfiltered (any status can be a legitimate duplicate
+        match, including a story a human already reviewed)."""
         ...
 
     def add_or_merge_story(

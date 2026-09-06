@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional, Tuple
 from app.domain.models import StoryData, ResearchFactData
-from app.processing.classifier import SOURCE_PRIORITIES
+from app.processing.entity_roles import is_non_company
 
 logger = logging.getLogger(__name__)
 
@@ -11,24 +11,20 @@ NUMERIC_FACT_TYPES = {
     "funding_amount", "valuation", "acquisition_value", "ipo_size", "revenue", "profit", "loss"
 }
 
-# Wire services, regulators, and publications that get cited inside article
-# text often get mistakenly extracted by the classifier as "the company" the
-# story is about (e.g. a story mentioning "...according to Reuters..." can
-# come out with company="Reuters"). Reuses the same name list classifier.py
-# already maintains for source-trust scoring, since it's exactly the set of
-# names that show up as citations rather than story subjects.
-_NON_COMPANY_NAMES = {k for k in SOURCE_PRIORITIES if k != "general"}
-
 
 def _resolve_company(story: StoryData) -> Optional[str]:
     """
     Returns story.company, unless it's actually a wire service/regulator/
     publication name — guards against embarrassingly wrong-sounding hooks
     like "SEBI just hit the stock market!" (SEBI is India's securities
-    regulator, not a listed company).
+    regulator, not a listed company). Uses the one canonical exclusion list
+    (app.processing.entity_roles) shared with entity extraction, company
+    resolution, and deduplication — NSE/BSE stay eligible there since a
+    stock exchange can genuinely be a story's own subject (e.g. "NSE gets
+    SEBI nod for its own Rs 30,000cr IPO").
     """
     company = story.company
-    if not company or company.strip().lower() in _NON_COMPANY_NAMES:
+    if not company or is_non_company(company):
         return None
     return company
 

@@ -18,11 +18,23 @@ required index set fixed and small, listed below.
 | # | Collection ID | Field Path | Sort Direction | Used By | Status |
 | :-- | :--- | :--- | :--- | :--- | :--- |
 | 1 | **stories** | `status` <br> `final_score` | Ascending <br> Descending | `get_stories()` default (`sort_by=score`); `get_research_eligible_queue()` | Built |
-| 2 | **stories** | `status` <br> `published_at` | Ascending <br> Descending | `get_stories()` with `sort_by=newest` | **Not yet built — create before using the "newest" sort in production** |
+| 2 | **stories** | `status` <br> `published_at` | Ascending <br> Descending | `get_stories()` with `sort_by=newest` | Defined in `firestore.indexes.json` — **still needs to be deployed/created in the live project** |
 | 3 | **stories** | `status` <br> `final_score` | Ascending <br> Ascending | `get_stats()` priority-bucket counts | Built |
 
-To create index #2: Firestore Console → Indexes → Create Index → Collection ID `stories`,
-fields `status` (Ascending) then `published_at` (Descending), query scope Collection.
+All three indexes above are now defined in `firestore.indexes.json` at the repo root, so it's
+the single source of truth going forward instead of hand-tracking index shapes in this doc.
+
+**Fastest fix (Firestore Console, no new tooling required):** Firestore Console → Indexes →
+Create Index → Collection ID `stories`, fields `status` (Ascending) then `published_at`
+(Descending), query scope Collection. Production continues to work today because the dashboard
+only calls `sort_by=newest` when a user explicitly picks that sort option — this is a "build
+before someone clicks it" gap, not an active outage.
+
+**Alternative (Firebase CLI):** if/when this project adopts `firebase.json` +
+`firestore.rules` for CLI-driven deploys, add a `"firestore": {"indexes": "firestore.indexes.json"}`
+block to `firebase.json` and run `firebase deploy --only firestore:indexes`. Deliberately not
+wired up as part of this pass — introducing `firebase.json` without an accompanying, reviewed
+`firestore.rules` file would be a bigger, security-rules-adjacent change than "add an index."
 
 A 3-field index (`status`, `final_score` DESC, `published_at` DESC) was created earlier while
 diagnosing the original deployment issue, before this refactor. It's no longer used by any query

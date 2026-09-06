@@ -6,8 +6,14 @@ from app.research.fact_normalizer import parse_monetary_value, normalize_percent
 
 logger = logging.getLogger(__name__)
 
-# Currency regex pattern
-CURRENCY_PATTERN = r'((?:\$|₹|inr|rs|usd)\s*\d+(?:\.\d+)?\s*(?:billion|million|crore|cr|m|b)?\b|\b\d+(?:\.\d+)?\s*(?:crore|cr|million|billion)\b)'
+# Currency regex pattern.
+# The numeric portion is `\d[\d,]*(?:\.\d+)?` rather than a bare `\d+(?:\.\d+)?`
+# — comma-grouped figures ("₹29,967 Cr", "Rs 7,764 cr") otherwise match only
+# up to the first comma ("₹29"), silently truncating a real number into a
+# smaller, wrong one rather than just missing it. parse_monetary_value()
+# already strips commas before parsing the float, so once the full
+# comma-grouped substring is captured here, normalization is correct.
+CURRENCY_PATTERN = r'((?:\$|₹|inr|rs|usd)\s*\d[\d,]*(?:\.\d+)?\s*(?:billion|million|crore|cr|m|b)?\b|\b\d[\d,]*(?:\.\d+)?\s*(?:crore|cr|million|billion)\b)'
 
 # Percentage regex pattern
 PERCENT_PATTERN = r'(\d+(?:\.\d+)?\s*(?:%|percent))'

@@ -34,6 +34,11 @@
             </div>
         </header>
 
+        <!-- Mobile-only filter toggle (sidebar collapses below 900px) -->
+        <button id="mobile-filter-toggle" class="btn btn-secondary mobile-filter-toggle">
+            <span>&#9776;</span> Filters &amp; Sort
+        </button>
+
         <!-- Stats Counter Panel -->
         <section class="stats-section">
             <div class="stat-card">
@@ -212,9 +217,17 @@
                     <p id="modal-summary" class="modal-text-desc"></p>
                 </div>
 
+                <!-- Why This Story Ranked -->
+                <div class="modal-section">
+                    <h3>Why This Story Ranked</h3>
+                    <div id="modal-key-reason" class="key-reason-banner"></div>
+                    <div id="modal-rating-grid" class="rating-grid"></div>
+                </div>
+
                 <!-- Table Breakdown -->
                 <div class="modal-section">
                     <h3>Ranking Justification Breakdown</h3>
+                    <div class="table-scroll">
                     <table class="breakdown-table">
                         <thead>
                             <tr>
@@ -280,6 +293,7 @@
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <!-- Research Panel Section -->
@@ -338,6 +352,10 @@
                     </div>
 
                     <div id="modal-draft-content" class="hidden">
+                        <div id="modal-draft-angles" class="angle-picker hidden">
+                            <span class="angle-picker-lbl">Angles:</span>
+                            <div id="modal-draft-angles-list" class="angle-pill-list"></div>
+                        </div>
                         <label for="modal-draft-post-text" style="font-size: 0.75rem; color: var(--text-muted); display:block; margin-bottom:0.35rem;">Tweet Text (<span id="modal-draft-char-count">0</span>/280)</label>
                         <textarea id="modal-draft-post-text" placeholder="Generate a draft to see tweet text here..." style="width: 100%; min-height: 80px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
                         <button type="button" id="modal-draft-copy-btn" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.7rem; margin-top: 0.5rem;">Copy Tweet</button>

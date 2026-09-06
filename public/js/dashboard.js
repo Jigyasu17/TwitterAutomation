@@ -6,6 +6,52 @@ let currentSort = 'score';
 let loadedStories = []; // Client-side cache for modal details lookup
 let activeStoryId = null;
 
+// Admin auth: production requires an ADMIN_SECRET bearer token on mutating
+// endpoints (collect/process/approve/reject/research/draft actions). The
+// token is never baked into this file (it's served publicly from the CDN)
+// — instead it's requested from the operator once and kept in this
+// browser's localStorage only. Read-only GET endpoints never use this.
+const ADMIN_TOKEN_KEY = 'marketpulse_admin_token';
+
+function getAdminToken() {
+    try {
+        return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function setAdminToken(token) {
+    try {
+        if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    } catch (e) {
+        // Ignore storage failures (private browsing, etc.) — request still proceeds this once.
+    }
+}
+
+// Wraps fetch() for endpoints that require ADMIN_SECRET in production. Sends
+// the locally-stored token if present; if the server responds 401, prompts
+// once for the token, remembers it, and retries the request. In local
+// development (ENV=development) the server skips the check entirely, so
+// this is transparent — no prompt ever appears.
+async function authedFetch(url, options = {}) {
+    const token = getAdminToken();
+    const headers = { ...(options.headers || {}) };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    let response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+        const entered = window.prompt('This action requires the admin token (ADMIN_SECRET). Enter it now:');
+        if (entered) {
+            setAdminToken(entered);
+            response = await fetch(url, { ...options, headers: { ...headers, 'Authorization': `Bearer ${entered}` } });
+        }
+    }
+
+    return response;
+}
+
 
 // DOM Elements
 const collectBtn = document.getElementById('collect-btn');
@@ -58,6 +104,8 @@ const modalEntitiesCountries = document.getElementById('modal-entities-countries
 const modalEntitiesPeople = document.getElementById('modal-entities-people');
 const modalEntitiesPeopleRow = document.getElementById('modal-entities-people-row');
 const modalSourcesList = document.getElementById('modal-sources-list');
+const modalKeyReason = document.getElementById('modal-key-reason');
+const modalRatingGrid = document.getElementById('modal-rating-grid');
 
 // Table Breakdown Elements
 const tableMarketImpact = document.getElementById('table-market-impact');
@@ -100,7 +148,13 @@ const modalDraftThreadContainer = document.getElementById('modal-draft-thread-co
 const modalDraftSaveBtn = document.getElementById('modal-draft-save-btn');
 const modalDraftPublishBtn = document.getElementById('modal-draft-publish-btn');
 const modalDraftDiscardBtn = document.getElementById('modal-draft-discard-btn');
+const modalDraftAngles = document.getElementById('modal-draft-angles');
+const modalDraftAnglesList = document.getElementById('modal-draft-angles-list');
 let activeDraftId = null;
+
+// Mobile filter sidebar toggle
+const mobileFilterToggle = document.getElementById('mobile-filter-toggle');
+const filterSidebarEl = document.querySelector('.filter-sidebar');
 
 // Initial Setup
 document.addEventListener('DOMContentLoaded', () => {
@@ -110,6 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Event Listeners Registration
 function initEventListeners() {
+    // Mobile filter sidebar toggle (sidebar collapses below 900px, see style.css)
+    if (mobileFilterToggle && filterSidebarEl) {
+        mobileFilterToggle.addEventListener('click', () => {
+            filterSidebarEl.classList.toggle('open');
+        });
+    }
+
     // Collect News trigger
     collectBtn.addEventListener('click', handleCollectNews);
 
@@ -300,7 +361,7 @@ function renderResearchQueue(queue) {
 async function handleSidebarResearch(storyId) {
     try {
         showToast('Initiating research crawler...', 'info');
-        const response = await fetch(`/api/stories/${storyId}/research`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/research`, { method: 'POST' });
         if (!response.ok) throw new Error('Research trigger failed');
         const result = await response.json();
         
@@ -314,6 +375,26 @@ async function handleSidebarResearch(storyId) {
         console.error(err);
         showToast('Error executing story research', 'error');
     }
+}
+
+// Computes at most one attention-grabbing badge per story, in priority
+// order — deliberately sparing per the "don't overuse badges" guidance.
+function getStoryBadge(story) {
+    const eventType = story.event_type || '';
+    const finalScore = story.final_score || 0;
+    const publishedAt = story.published_at ? new Date(story.published_at) : null;
+    const hoursAgo = publishedAt ? (Date.now() - publishedAt.getTime()) / 3600000 : null;
+
+    if (hoursAgo !== null && hoursAgo <= 3 && finalScore >= 75) {
+        return { label: 'BREAKING', cls: 'badge-breaking' };
+    }
+    if (eventType === 'REGULATORY_ACTION') return { label: 'REGULATORY', cls: 'badge-regulatory' };
+    if (eventType === 'ACQUISITION' || eventType === 'MERGER') return { label: 'M&A', cls: 'badge-ma' };
+    if (eventType && eventType.startsWith('IPO')) return { label: 'IPO', cls: 'badge-ipo' };
+    if (['EARNINGS', 'PROFIT_UPDATE', 'REVENUE_UPDATE'].includes(eventType)) return { label: 'EARNINGS', cls: 'badge-earnings' };
+    if (eventType === 'STOCK_MOVEMENT' && finalScore >= 60) return { label: 'MARKET MOVING', cls: 'badge-market-moving' };
+    if (finalScore >= 85) return { label: 'HIGH IMPACT', cls: 'badge-high-impact' };
+    return null;
 }
 
 // Render dynamic card items
@@ -370,9 +451,17 @@ function renderStories(stories) {
             researchBadge = `<span style="font-size:0.7rem; background:${badgeColor}; padding:0.1rem 0.4rem; border-radius:4px; margin-left:0.5rem; text-transform:uppercase; font-weight:600;">🔬 ${rStatus}</span>`;
         }
 
+        const priorityBadge = getStoryBadge(story);
+        const priorityBadgeHtml = priorityBadge
+            ? `<span class="priority-badge ${priorityBadge.cls}">${priorityBadge.label}</span>`
+            : '';
+
+        const keyReason = (story.scoring_breakdown || {}).key_reason;
+
         card.innerHTML = `
             <div class="card-header">
                 <div class="card-meta">
+                    ${priorityBadgeHtml}
                     <span class="category-tag">${story.category}</span>
                     ${story.event_type ? `<span class="event-tag">${story.event_type}</span>` : ''}
                     <span class="pub-time">${formattedDate}</span>
@@ -380,9 +469,10 @@ function renderStories(stories) {
                 </div>
                 <span class="status-badge ${statusClass}">${story.status}</span>
             </div>
-            
+
             <h3 class="story-title">${story.title}</h3>
             <p class="story-summary">${story.summary || 'No summary description available for this story.'}</p>
+            ${keyReason ? `<p class="story-key-reason">💡 ${keyReason}</p>` : ''}
             
             <!-- Scores Block -->
             <div class="card-scores-row">
@@ -428,7 +518,7 @@ async function handleCollectNews() {
         setCollectLoading(true);
         showToast('Initiating news collector sync...', 'info');
 
-        const response = await fetch('/api/collect', { method: 'POST' });
+        const response = await authedFetch('/api/collect', { method: 'POST' });
         if (!response.ok) throw new Error('Collection failed');
         const result = await response.json();
 
@@ -452,7 +542,7 @@ async function handleProcessStories() {
         setProcessLoading(true);
         showToast('Running classifier and scoring calculations...', 'info');
 
-        const response = await fetch('/api/process', { method: 'POST' });
+        const response = await authedFetch('/api/process', { method: 'POST' });
         if (!response.ok) throw new Error('Processing failed');
         const result = await response.json();
 
@@ -476,7 +566,7 @@ async function handleProcessResearchQueue() {
         setResearchQueueLoading(true);
         showToast('Running research queue calculations (stateless concurrency)...', 'info');
         
-        const response = await fetch('/api/research/process?concurrency=3', { method: 'POST' });
+        const response = await authedFetch('/api/research/process?concurrency=3', { method: 'POST' });
         if (!response.ok) throw new Error('Queue processing failed');
         const result = await response.json();
         
@@ -507,7 +597,7 @@ async function handleRunResearch(isRerun = false) {
         showToast(isRerun ? 'Rerunning complete research...' : 'Crawling and extracting facts...', 'info');
         
         const url = isRerun ? `/api/stories/${activeStoryId}/research-again` : `/api/stories/${activeStoryId}/research`;
-        const response = await fetch(url, { method: 'POST' });
+        const response = await authedFetch(url, { method: 'POST' });
         if (!response.ok) throw new Error('Research request failed');
         const result = await response.json();
         
@@ -588,6 +678,30 @@ function renderDraft(draft) {
     modalDraftPostText.value = displayText;
     modalDraftCharCount.textContent = displayText.length;
 
+    // Angle picker: lets the reviewer swap in a different generated angle
+    // before saving, without a full regenerate. Purely a textarea prefill —
+    // nothing is persisted until "Save Edit" is clicked.
+    modalDraftAnglesList.innerHTML = '';
+    if (draft.angles && draft.angles.length > 1) {
+        modalDraftAngles.classList.remove('hidden');
+        draft.angles.forEach((angle, idx) => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'angle-pill' + (idx === 0 ? ' active' : '');
+            pill.textContent = angle.strategy.replace(/_/g, ' ');
+            pill.title = angle.text;
+            pill.addEventListener('click', () => {
+                modalDraftPostText.value = angle.text;
+                modalDraftCharCount.textContent = angle.text.length;
+                modalDraftAnglesList.querySelectorAll('.angle-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+            });
+            modalDraftAnglesList.appendChild(pill);
+        });
+    } else {
+        modalDraftAngles.classList.add('hidden');
+    }
+
     modalDraftThreadContainer.innerHTML = '';
     if (draft.thread_json && draft.thread_json.length > 0) {
         const label = document.createElement('div');
@@ -641,7 +755,7 @@ async function handleGenerateDraft(force = false) {
         showToast(force ? 'Regenerating draft...' : 'Generating draft...', 'info');
 
         const url = `/api/stories/${activeStoryId}/draft${force ? '?force=true' : ''}`;
-        const response = await fetch(url, { method: 'POST' });
+        const response = await authedFetch(url, { method: 'POST' });
         if (!response.ok) throw new Error('Draft generation failed');
         const result = await response.json();
 
@@ -662,7 +776,7 @@ async function handleGenerateDraft(force = false) {
 async function handleSaveDraftEdit() {
     if (!activeDraftId) return;
     try {
-        const response = await fetch(`/api/drafts/${activeDraftId}/edit`, {
+        const response = await authedFetch(`/api/drafts/${activeDraftId}/edit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ edited_text: modalDraftPostText.value })
@@ -683,7 +797,7 @@ async function handlePublishDraft() {
     if (xUrl === null) return;
 
     try {
-        const response = await fetch(`/api/drafts/${activeDraftId}/publish`, {
+        const response = await authedFetch(`/api/drafts/${activeDraftId}/publish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ x_url: xUrl || null })
@@ -702,7 +816,7 @@ async function handleDiscardDraft() {
     if (!window.confirm('Discard this draft? This cannot be undone.')) return;
 
     try {
-        const response = await fetch(`/api/drafts/${activeDraftId}/discard`, { method: 'POST' });
+        const response = await authedFetch(`/api/drafts/${activeDraftId}/discard`, { method: 'POST' });
         if (!response.ok) throw new Error('Discard failed');
         showToast('Draft discarded', 'info');
         fetchAndRenderDraft(activeStoryId);
@@ -725,7 +839,7 @@ async function copyToClipboard(text, successMessage) {
 // Actions approval / rejections
 async function handleApprove(storyId) {
     try {
-        const response = await fetch(`/api/stories/${storyId}/approve`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/approve`, { method: 'POST' });
         if (!response.ok) throw new Error('Approval request failed');
         showToast('Story Approved', 'success');
         refreshDashboard();
@@ -737,7 +851,7 @@ async function handleApprove(storyId) {
 
 async function handleReject(storyId) {
     try {
-        const response = await fetch(`/api/stories/${storyId}/reject`, { method: 'POST' });
+        const response = await authedFetch(`/api/stories/${storyId}/reject`, { method: 'POST' });
         if (!response.ok) throw new Error('Rejection request failed');
         showToast('Story Rejected', 'success');
         refreshDashboard();
@@ -879,6 +993,35 @@ function handleDetails(storyId) {
     weightedConfidenceFinal.textContent = (conf * 0.15).toFixed(1);
 
     tableGrandTotal.textContent = `${story.final_score.toFixed(1)} / 100`;
+
+    // "Why This Story Ranked" panel
+    modalKeyReason.textContent = breakdown.key_reason || 'No dominant ranking signal recorded for this story yet.';
+    modalRatingGrid.innerHTML = '';
+    const ratings = [
+        ['Market Relevance', breakdown.rating_market_relevance],
+        ['Financial Materiality', breakdown.rating_financial_materiality],
+        ['India Relevance', breakdown.rating_india_relevance],
+        ['Freshness', breakdown.rating_freshness],
+        ['Source Quality', breakdown.rating_source_quality],
+        ['Investor Relevance', breakdown.rating_investor_relevance],
+    ];
+    ratings.forEach(([label, value]) => {
+        const v = typeof value === 'number' ? value : 0;
+        const row = document.createElement('div');
+        row.className = 'rating-row';
+        row.innerHTML = `
+            <span class="rating-lbl">${label}</span>
+            <div class="rating-bar-track"><div class="rating-bar-fill" style="width:${Math.min(100, v * 10)}%"></div></div>
+            <span class="rating-val">${v.toFixed(1)}/10</span>
+        `;
+        modalRatingGrid.appendChild(row);
+    });
+    if (breakdown.noise_penalty) {
+        const noiseNote = document.createElement('div');
+        noiseNote.className = 'noise-note';
+        noiseNote.textContent = `⚠ Down-ranked ${breakdown.noise_penalty} pts: ${(breakdown.noise_reasons || []).join('; ')}`;
+        modalRatingGrid.appendChild(noiseNote);
+    }
 
     // Populate Linked Source Lists
     modalSourcesList.innerHTML = '';

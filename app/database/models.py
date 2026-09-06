@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, UniqueConstraint, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -34,9 +34,14 @@ class Story(Base):
     final_score = Column(Integer, default=0)
     scoring_breakdown = Column(Text, nullable=True) # JSON string
     
-    status = Column(String, default="NEW")  # NEW, FILTERED, READY_FOR_REVIEW, APPROVED, PUBLISHED, REJECTED
+    status = Column(String, default="NEW")  # NEW, FILTERED, READY_FOR_REVIEW, APPROVED, PUBLISHED, REJECTED, MERGED
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Set when status == "MERGED" by the one-time retroactive reconciliation
+    # (app/processing/reconciliation.py) — points at the surviving primary
+    # story's id. Never deleted, just excluded from the live feed.
+    merged_into_id = Column(Integer, nullable=True)
 
     # Relationships
     sources = relationship("StorySource", back_populates="story", cascade="all, delete-orphan")
@@ -78,7 +83,8 @@ class Story(Base):
             "scoring_breakdown": parsed_breakdown,
             "status": self.status,
             "sources": [source.to_dict() for source in self.sources],
-            "research_report": self.research_report.to_dict() if self.research_report else None
+            "research_report": self.research_report.to_dict() if self.research_report else None,
+            "merged_into_id": self.merged_into_id,
         }
 
 class StorySource(Base):
@@ -256,6 +262,12 @@ class Draft(Base):
     generated_at = Column(DateTime, default=datetime.utcnow)
     edited_text = Column(Text, nullable=True)
     status = Column(String, default="NEW")
+
+    # Multi-angle generation + quality-control metadata (news-quality/X-gen overhaul)
+    angles_json = Column(Text, nullable=True)  # JSON list of {"strategy": str, "text": str}
+    quality_score = Column(Integer, nullable=True)
+    hook_strategy = Column(String, nullable=True)
+    ai_used = Column(Boolean, default=False)
 
     # Relationship
     story = relationship("Story", back_populates="drafts")
