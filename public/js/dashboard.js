@@ -6,50 +6,11 @@ let currentSort = 'score';
 let loadedStories = []; // Client-side cache for modal details lookup
 let activeStoryId = null;
 
-// Admin auth: production requires an ADMIN_SECRET bearer token on mutating
-// endpoints (collect/process/approve/reject/research/draft actions). The
-// token is never baked into this file (it's served publicly from the CDN)
-// — instead it's requested from the operator once and kept in this
-// browser's localStorage only. Read-only GET endpoints never use this.
-const ADMIN_TOKEN_KEY = 'marketpulse_admin_token';
-
-function getAdminToken() {
-    try {
-        return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
-    } catch (e) {
-        return '';
-    }
-}
-
-function setAdminToken(token) {
-    try {
-        if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
-    } catch (e) {
-        // Ignore storage failures (private browsing, etc.) — request still proceeds this once.
-    }
-}
-
-// Wraps fetch() for endpoints that require ADMIN_SECRET in production. Sends
-// the locally-stored token if present; if the server responds 401, prompts
-// once for the token, remembers it, and retries the request. In local
-// development (ENV=development) the server skips the check entirely, so
-// this is transparent — no prompt ever appears.
+// Mutating endpoints (collect/process/approve/reject/research/draft actions)
+// carry no auth token — this dashboard has no login/multi-user layer, so
+// authedFetch is a thin passthrough kept only so call sites don't change.
 async function authedFetch(url, options = {}) {
-    const token = getAdminToken();
-    const headers = { ...(options.headers || {}) };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    let response = await fetch(url, { ...options, headers });
-
-    if (response.status === 401) {
-        const entered = window.prompt('This action requires the admin token (ADMIN_SECRET). Enter it now:');
-        if (entered) {
-            setAdminToken(entered);
-            response = await fetch(url, { ...options, headers: { ...headers, 'Authorization': `Bearer ${entered}` } });
-        }
-    }
-
-    return response;
+    return fetch(url, options);
 }
 
 

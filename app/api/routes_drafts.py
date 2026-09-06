@@ -5,7 +5,6 @@ from typing import Optional
 from app.repositories.interfaces import StoryRepository, DraftRepository
 from app.repositories.factory import get_story_repo, get_draft_repo
 from app.jobs.drafting_job import run_draft_generation
-from app.api.auth import verify_admin_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["drafts"])
@@ -19,7 +18,7 @@ class PublishDraftBody(BaseModel):
     x_url: Optional[str] = None
 
 
-@router.post("/api/stories/{story_id}/draft", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/stories/{story_id}/draft")
 def create_draft(
     story_id: str,
     force: bool = Query(False, description="Regenerate even if the draft was already edited or posted"),
@@ -61,7 +60,7 @@ def list_drafts(
         raise HTTPException(status_code=500, detail="Error listing drafts.")
 
 
-@router.post("/api/drafts/{draft_id}/edit", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/drafts/{draft_id}/edit")
 def edit_draft(draft_id: str, body: EditDraftBody, draft_repo: DraftRepository = Depends(get_draft_repo)):
     """Saves a manual edit to a draft's text and marks it EDITED."""
     draft = draft_repo.get_draft_by_id(draft_id)
@@ -74,7 +73,7 @@ def edit_draft(draft_id: str, body: EditDraftBody, draft_repo: DraftRepository =
     return {"status": "success", "draft": saved.to_dict()}
 
 
-@router.post("/api/drafts/{draft_id}/publish", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/drafts/{draft_id}/publish")
 def publish_draft(draft_id: str, body: PublishDraftBody, draft_repo: DraftRepository = Depends(get_draft_repo)):
     """Marks a draft as posted, recording a PublishedPost entry."""
     try:
@@ -87,7 +86,7 @@ def publish_draft(draft_id: str, body: PublishDraftBody, draft_repo: DraftReposi
         raise HTTPException(status_code=500, detail="Failed to publish draft.")
 
 
-@router.post("/api/drafts/{draft_id}/discard", dependencies=[Depends(verify_admin_auth)])
+@router.post("/api/drafts/{draft_id}/discard")
 def discard_draft(draft_id: str, draft_repo: DraftRepository = Depends(get_draft_repo)):
     """Marks a draft as discarded."""
     try:

@@ -31,7 +31,7 @@ a project dependency, so only worth installing if the dashboard route above isn'
 
 - **Cron jobs** (`vercel.json`'s `crons` block) — these are path-based (`/api/jobs/collect`
   etc.), not tied to the project name or domain, so renaming changes nothing about them.
-- **Environment variables** (`CRON_SECRET`, `ADMIN_SECRET`, `GCP_PROJECT_ID`, `FIRESTORE_CREDENTIALS_JSON`) —
+- **Environment variables** (`CRON_SECRET`, `GCP_PROJECT_ID`, `FIRESTORE_CREDENTIALS_JSON`) —
   scoped to the project itself, they carry over automatically through a rename.
 - **Firestore** — entirely unrelated; the Firestore project (`GCP_PROJECT_ID`) is a separate
   GCP resource, unaffected by what the Vercel project happens to be named.
